@@ -17,8 +17,10 @@ function loadConsoleNames(root) {
 function recordConsoleNames(root, consoles) {
   const names = loadConsoleNames(root);
   for (const console of consoles) {
-    if (!console.hostId || !console.name) continue;
-    names[console.hostId] = {
+    const profile = typeof console.profileId === 'string' ? console.profileId.trim()
+      : typeof console.hostId === 'string' ? console.hostId.trim() : '';
+    if (!profile || !console.name) continue;
+    names[profile] = {
       name: console.name,
       firmware: console.firmware || '',
     };

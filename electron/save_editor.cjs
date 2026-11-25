@@ -9,7 +9,7 @@ const { pipeline } = require('node:stream/promises');
 const { isIP } = require('node:net');
 const { runLocalWorkerJob } = require('./local_worker.cjs');
 const { SaveTemps } = require('./save_temps.cjs');
-const { writeEditedFile, addWorkspaceFiles } = require('./workspace_io.cjs');
+const { writeEditedFile, addWorkspaceFiles, prepareWorkspaceReplacement, replaceWorkspaceFile } = require('./workspace_io.cjs');
 const { randomUUID } = require('node:crypto');
 const { setTimeout: wait } = require('node:timers/promises');
 
@@ -111,13 +111,14 @@ async function accountIdFromSfo(root, candidates = null) {
 }
 
 // Function Workspace Scan
-async function workspaceInfo(root) {
+async function workspaceInfo(root, ignoredPaths = new Set()) {
   const base = path.resolve(root);
   const files = [];
   const sfoCandidates = [];
   async function visit(directory) {
     for (const entry of await fsPromises.readdir(directory, { withFileTypes: true })) {
       const current = path.join(directory, entry.name);
+      if (ignoredPaths.has(current)) continue;
       if (entry.isDirectory()) {
         await visit(current);
       } else if (entry.isFile()) {
@@ -500,6 +501,17 @@ function registerSaveEditor({ ipcMain, app, dialog, shell, python, resourceRoot,
     const result = await dialog.showOpenDialog({ properties: ['openFile', 'multiSelections'] });
     if (result.canceled) return null;
     return addWorkspaceFiles(root, result.filePaths, () => workspaceInfo(root));
+  }));
+  // Function File Replacement
+  ipcMain.handle('save-editor:replace', (event, { root, path: relative }) => useWorkspace(event, root, async () => {
+    const target = await prepareWorkspaceReplacement(root, relative);
+    const result = await dialog.showOpenDialog({
+      title: `Replace ${path.basename(target.selected)}`,
+      properties: ['openFile'],
+    });
+    if (result.canceled) return null;
+    if (!Array.isArray(result.filePaths) || result.filePaths.length !== 1) throw new Error('choose one replacement file');
+    return replaceWorkspaceFile(target, result.filePaths[0], ignored => workspaceInfo(target.root, ignored));
   }));
   ipcMain.handle('save-editor:delete', (event, { root, path: relative }) => useWorkspace(event, root, async () => {
     if (protectedFile(relative)) throw new Error('metadata required to rebuild the save cannot be deleted');

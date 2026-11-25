@@ -11,7 +11,7 @@ for (const id of [
   'encryptPanel', 'encryptAccountId', 'confirmEncryptBtn', 'workspaceFiles', 'fileEditorPanel',
   'editorFileName', 'editorMode', 'fileEditor', 'editorHint', 'editorSearch', 'editorFindNext',
   'editorOffset', 'editorGoOffset', 'editorRevert', 'editorByteCount', 'saveFileBtn', 'downloadFileBtn',
-  'deleteFileBtn', 'mySavesStatus', 'mySavesLog',
+  'replaceFileBtn', 'deleteFileBtn', 'mySavesStatus', 'mySavesLog',
 ]) myControls[id] = document.getElementById(id);
 myControls.mySavesTab = document.getElementById('libraryPage');
 
@@ -72,6 +72,8 @@ let mySaveOperation = false;
 let myOperationSequence = 0;
 let myCancelOperation = 0;
 let myCancellationSequence = 0;
+let workspaceTree = null;
+const MAX_EDITOR_FILE_BYTES = 8 * 1024 * 1024;
 
 function myStatus(message) {
   myControls.mySavesStatus.textContent = message;
@@ -103,7 +105,10 @@ window.saveAccounts?.onBeforeClose?.(async () => {
   setAccountClosing(false);
   savedAccounts?.setBusy(mySaveOperation);
 });
-document.addEventListener('transfer-state-changed', () => savedAccounts?.setBusy(mySaveOperation || accountClosing));
+document.addEventListener('transfer-state-changed', () => {
+  savedAccounts?.setBusy(mySaveOperation || accountClosing);
+  workspaceTree?.setBusy(mySaveOperation || accountClosing || Boolean(activeTransfer) || browseSessionActive);
+});
 
 function setMyOperation(value) {
   mySaveOperation = value;
@@ -117,6 +122,7 @@ function setMyOperation(value) {
   myControls.resignAccountId.disabled = value;
   myControls.encryptAccountId.disabled = value;
   myControls.workspaceFiles.style.pointerEvents = value ? 'none' : '';
+  workspaceTree?.setBusy(value || accountClosing);
   savedAccounts?.setBusy(value || accountClosing);
   if (!value) updateMyFileActions();
 }
@@ -601,10 +607,22 @@ async function refreshMySaves(inventory) {
 function updateMyFileActions() {
   const protectedSelection = selectedWorkspaceFile?.protected;
   myControls.deleteFileBtn.disabled = mySaveOperation || !selectedWorkspaceFile || protectedSelection;
-  myControls.saveFileBtn.disabled = mySaveOperation || !selectedWorkspaceFile;
-  myControls.saveEncryptFileBtn.disabled = mySaveOperation || !selectedWorkspaceFile;
+  myControls.saveFileBtn.disabled = mySaveOperation || !selectedWorkspaceFile || selectedFileBytes === null;
+  myControls.saveEncryptFileBtn.disabled = mySaveOperation || !selectedWorkspaceFile || selectedFileBytes === null;
   myControls.downloadFileBtn.disabled = mySaveOperation || !selectedWorkspaceFile;
+  if (myControls.replaceFileBtn) myControls.replaceFileBtn.disabled = mySaveOperation || !selectedWorkspaceFile;
 }
+
+// Function Workspace Tree
+workspaceTree = window.WorkspaceTree?.create(document, myControls.workspaceFiles, {
+  onOpen: file => runMyOperation(() => openWorkspaceFile(file)),
+  onAction: (action, file) => runMyOperation(() => {
+    if (action === 'replace') return replaceWorkspaceFile(file);
+    if (action === 'export') return exportWorkspaceFile(file);
+    if (action === 'delete') return deleteWorkspaceFile(file);
+  }),
+  isBusy: () => accountClosing || mySaveOperation || Boolean(activeTransfer) || browseSessionActive,
+});
 
 function renderWorkspace() {
   myControls.workspacePanel.hidden = !decryptedWorkspace;
@@ -617,9 +635,14 @@ function renderWorkspace() {
   myControls.encryptAccountId.value = savedAccounts
     ? savedAccounts.getTargetId(newAccountWorkspace ? workspaceDetails.accountId || '' : myControls.encryptAccountId.value || workspaceDetails.accountId || '')
     : workspaceDetails.accountId || myControls.encryptAccountId.value;
+  if (workspaceTree) {
+    workspaceTree.render(workspaceDetails.files, selectedWorkspaceFile?.path, decryptedWorkspace);
+    return;
+  }
   myControls.workspaceFiles.replaceChildren();
   for (const file of workspaceDetails.files) {
     const row = document.createElement('tr');
+    row.dataset.filePath = file.path;
     if (selectedWorkspaceFile?.path === file.path) row.className = 'selected';
     const name = document.createElement('td');
     name.textContent = file.path;
@@ -750,10 +773,79 @@ async function openWorkspaceFile(file) {
   selectedWorkspaceFile = file;
   selectedFileBytes = null;
   myControls.fileEditorPanel.hidden = true;
-  const result = await window.saveEditor.read({ root: decryptedWorkspace, path: file.path });
-  selectedFileBytes = Uint8Array.from(atob(result.data), (character) => character.charCodeAt(0));
+  await readEditorFile(decryptedWorkspace, file.path);
+  renderWorkspace();
+}
+
+// Function Read Editor
+async function readEditorFile(root, path) {
+  const result = await window.saveEditor.read({ root, path });
+  selectedFileBytes = Uint8Array.from(atob(result.data), character => character.charCodeAt(0));
   if ([...selectedFileBytes.slice(0, 256)].includes(0)) myControls.editorMode.value = 'hex';
   renderEditor();
+}
+
+// Function Replace File
+async function replaceWorkspaceFile(file) {
+  const root = decryptedWorkspace;
+  const current = workspaceDetails?.files.find(candidate => candidate.path === file.path);
+  if (!root || !current || typeof window.saveEditor.replace !== 'function') return;
+  const path = current.path;
+  const replacingEditor = selectedWorkspaceFile?.path === path;
+  if (replacingEditor && editorDirty
+    && !await confirmSaveAction('Discard unsaved changes to this file and replace it?')) return;
+  const result = await window.saveEditor.replace({ root, path });
+  if (!result || root !== decryptedWorkspace) return;
+  workspaceDetails = result;
+  workspaceModified = true;
+  let editorNotice = '';
+  if (replacingEditor) {
+    selectedWorkspaceFile = result.files.find(candidate => candidate.path === path) || null;
+    selectedFileBytes = null;
+    editorDirty = false;
+    myControls.fileEditorPanel.hidden = true;
+    if (selectedWorkspaceFile && selectedWorkspaceFile.size <= MAX_EDITOR_FILE_BYTES) {
+      try {
+        await readEditorFile(root, path);
+      } catch (error) {
+        editorNotice = ' Select the file again to retry opening it.';
+        myLog(`Replaced ${path}, but could not open it in the editor: ${error.message}`);
+      }
+    } else if (selectedWorkspaceFile) {
+      editorNotice = ' This file is larger than 8 MiB; export it to edit with another application.';
+    }
+  } else if (selectedWorkspaceFile) {
+    selectedWorkspaceFile = result.files.find(candidate => candidate.path === selectedWorkspaceFile.path) || selectedWorkspaceFile;
+  }
+  renderWorkspace();
+  myStatus(`${path} replaced in the decrypted workspace.${editorNotice}`);
+  myLog(`Replaced ${path} in the decrypted workspace.`);
+}
+
+// Function Export File
+async function exportWorkspaceFile(file) {
+  if (!decryptedWorkspace || !workspaceDetails?.files.some(candidate => candidate.path === file.path)) return;
+  const destination = await window.saveEditor.downloadFile({ root: decryptedWorkspace, path: file.path });
+  if (destination) myStatus(`File exported to ${destination}`);
+}
+
+// Function Delete File
+async function deleteWorkspaceFile(file) {
+  const root = decryptedWorkspace;
+  const current = workspaceDetails?.files.find(candidate => candidate.path === file.path);
+  if (!root || !current || current.protected) return;
+  if (!await confirmSaveAction(`Delete ${current.path} from the decrypted workspace?`)) return;
+  const result = await window.saveEditor.delete({ root, path: current.path });
+  if (!result || root !== decryptedWorkspace) return;
+  workspaceDetails = result;
+  workspaceModified = true;
+  myLog(`Deleted ${current.path} from the decrypted workspace.`);
+  if (selectedWorkspaceFile?.path === current.path) {
+    selectedWorkspaceFile = null;
+    selectedFileBytes = null;
+    editorDirty = false;
+    myControls.fileEditorPanel.hidden = true;
+  }
   renderWorkspace();
 }
 
@@ -765,6 +857,7 @@ async function closeMyWorkspace(confirmed = false) {
   decryptedWorkspace = null;
   decryptedArchive = null;
   workspaceDetails = null;
+  workspaceTree?.reset();
   accountWorkspace = null;
   selectedWorkspaceFile = null;
   selectedFileBytes = null;
@@ -1115,7 +1208,7 @@ myControls.fileEditor.addEventListener('input', () => {
   updateEditorByteCount();
 });
 async function saveCurrentEditorFile() {
-  if (!selectedWorkspaceFile) return false;
+  if (!selectedWorkspaceFile || selectedFileBytes === null) return false;
   const bytes = editorBytes();
   const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
   workspaceDetails = await window.saveEditor.write({
@@ -1139,19 +1232,13 @@ myControls.saveEncryptFileBtn.addEventListener('click', () => runMyOperation(asy
 }));
 myControls.downloadFileBtn.addEventListener('click', () => runMyOperation(async () => {
   if (!selectedWorkspaceFile) return;
-  const destination = await window.saveEditor.downloadFile({ root: decryptedWorkspace, path: selectedWorkspaceFile.path });
-  if (destination) myStatus(`File exported to ${destination}`);
+  await exportWorkspaceFile(selectedWorkspaceFile);
+}));
+myControls.replaceFileBtn?.addEventListener('click', () => runMyOperation(async () => {
+  if (selectedWorkspaceFile) await replaceWorkspaceFile(selectedWorkspaceFile);
 }));
 myControls.deleteFileBtn.addEventListener('click', () => runMyOperation(async () => {
-  if (!selectedWorkspaceFile || selectedWorkspaceFile.protected) return;
-  if (!await confirmSaveAction(`Delete ${selectedWorkspaceFile.path} from the decrypted workspace?`)) return;
-  workspaceDetails = await window.saveEditor.delete({ root: decryptedWorkspace, path: selectedWorkspaceFile.path });
-  workspaceModified = true;
-  myLog(`Deleted ${selectedWorkspaceFile.path} from the decrypted workspace.`);
-  selectedWorkspaceFile = null;
-  selectedFileBytes = null;
-  myControls.fileEditorPanel.hidden = true;
-  renderWorkspace();
+  if (selectedWorkspaceFile) await deleteWorkspaceFile(selectedWorkspaceFile);
 }));
 
 for (const tab of document.querySelectorAll('.nav-item')) {

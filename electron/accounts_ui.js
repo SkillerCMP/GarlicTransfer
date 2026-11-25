@@ -3,6 +3,7 @@
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.SavedAccounts = api;
 })(typeof window === 'object' ? window : globalThis, function build() {
+  const { t: uiText } = typeof module === 'object' && module.exports ? require('./i18n.js') : globalThis.GarlicI18n;
   // Function Account Controls
   function create(document, bridge, { onTargetChange = () => {}, isBusy = () => false, onStatus = () => {} } = {}) {
     const byId = id => document.getElementById(id);
@@ -36,7 +37,7 @@
 
     // Function Account Label
     function currentLabel() {
-      if (!currentId) return 'Not available';
+      if (!currentId) return uiText('Not available');
       const name = state.accounts.find(account => account.id === currentId)?.name.trim();
       return name || currentId;
     }
@@ -47,7 +48,7 @@
       const label = currentLabel();
       current.textContent = label;
       current.title = currentId;
-      current.setAttribute('aria-label', currentId ? `${label}, Account ID ${currentId}` : label);
+      current.setAttribute('aria-label', currentId ? uiText`${label}, Account ID ${currentId}` : label);
     }
 
     // Function Account Status
@@ -66,7 +67,7 @@
       if (add) {
         const duplicate = state.accounts.some(account => account.id === currentId);
         add.disabled = disabled || !currentId || duplicate;
-        add.title = duplicate ? 'This account is already saved.' : 'Add the current save account to the list.';
+        add.title = duplicate ? uiText('This account is already saved.') : uiText('Add the current save account to the list.');
       }
       if (rows) for (const control of rows.querySelectorAll('input, button')) {
         control.disabled = control.tagName === 'INPUT' ? !loaded || busy || isBusy() : disabled;
@@ -82,7 +83,7 @@
       const account = state.accounts.find(item => item.id === id);
       if (!accountId(id) || account) return;
       if (!nameDialog || !nameForm || !nameInput) {
-        report('Account naming is unavailable. Restart GarlicTransfer and try again.', true);
+        report(uiText('Account naming is unavailable. Restart GarlicTransfer and try again.'), true);
         return;
       }
       naming = { id, opener };
@@ -142,7 +143,7 @@
             const errorValue = error || new Error('Could not save the account name.');
             setNameFailure(item, errorValue);
             failure ||= errorValue;
-            report(errorValue.message || 'Could not save the account name.', true);
+            report(errorValue.message || uiText('Could not save the account name.'), true);
           }
         }
       }, 'Account name saved.', true, false);
@@ -156,7 +157,7 @@
     function setNameFailure(item, error) {
       item.failure = error;
       item.error.hidden = !error;
-      item.error.textContent = error?.message || (error ? 'Could not save the account name.' : '');
+      item.error.textContent = error?.message || (error ? uiText('Could not save the account name.') : '');
       if (error) item.input.setAttribute('aria-invalid', 'true');
       else item.input.removeAttribute('aria-invalid');
     }
@@ -181,7 +182,7 @@
       input.type = 'text'; input.maxLength = 64; input.value = account.name;
       input.placeholder = 'Display name'; input.dataset.accountId = account.id;
       input.autocomplete = 'off'; input.spellcheck = false;
-      input.setAttribute('aria-label', `Name for ${account.id}`);
+      input.setAttribute('aria-label', uiText`Name for ${account.id}`);
       const error = document.createElement('small');
       error.id = `account-name-error-${account.id}`; error.dataset.accountError = account.id;
       error.className = 'hint account-name-error'; error.hidden = true;
@@ -200,9 +201,9 @@
       nameCell.append(input, error);
       const removeCell = document.createElement('td');
       const remove = document.createElement('button');
-      remove.type = 'button'; remove.textContent = 'Remove'; remove.dataset.accountId = account.id;
+      remove.type = 'button'; remove.textContent = uiText('Remove'); remove.dataset.accountId = account.id;
       remove.dataset.action = 'remove';
-      remove.setAttribute('aria-label', `Remove ${account.id}`);
+      remove.setAttribute('aria-label', uiText`Remove ${account.id}`);
       remove.addEventListener('click', () => mutate(() => bridge.remove(account.id), 'Account removed.'));
       removeCell.appendChild(remove);
       row.append(idCell, nameCell, removeCell);
@@ -215,7 +216,7 @@
       if (target) {
         target.replaceChildren();
         const original = document.createElement('option');
-        original.value = ''; original.textContent = 'Choose account…';
+        original.value = ''; original.textContent = uiText('Choose account…');
         target.appendChild(original);
         for (const account of state.accounts) {
           const option = document.createElement('option');
@@ -279,7 +280,7 @@
           if (!result?.warning) report(message);
         } catch (error) {
           render();
-          report(error?.message || 'Could not save the account list.', true);
+          report(error?.message || uiText('Could not save the account list.'), true);
           throw error;
         } finally {
           if (pendingChange === change) { pendingChange = null; pending = false; }
@@ -300,7 +301,7 @@
         await mutate(() => bridge.add(id, value), 'Account name saved.');
         closeNameDialog();
       } catch (error) {
-        if (nameError) nameError.textContent = error?.message || 'Could not save the account name.';
+        if (nameError) nameError.textContent = error?.message || uiText('Could not save the account name.');
         nameInput.focus();
       }
     }
@@ -337,7 +338,7 @@
       loaded = true; apply(value, true); return true;
     }).catch(error => {
       loadError = error;
-      report(error?.message || 'Could not load saved accounts.', true);
+      report(error?.message || uiText('Could not load saved accounts.'), true);
       updateBusy(); return false;
     }) : Promise.resolve(false);
 

@@ -4,23 +4,26 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const { createRequire } = require('node:module');
+const i18n = require('../electron/i18n.js');
+require('../electron/locales/zh-CN.js');
 
 // Function Confirmation Fixture
 function fixture() {
   const mainPath = path.join(__dirname, '../electron/main.cjs');
   const actualRequire = createRequire(mainPath);
   const handlers = new Map(), calls = [];
-  const app = { getPath: () => '/unused-confirmation-test', whenReady: () => ({ then() {} }), on() {} };
+  const app = { getPreferredSystemLanguages: () => ['en-US'], getPath: () => '/unused-confirmation-test', whenReady: () => ({ then() {} }), on() {} };
   const dialog = { showMessageBox: async (owner, options) => { calls.push({ owner, options }); return { response: 0 }; } };
   class Store {}
   let destroyed = false, senderDestroyed = false;
+  let settings = { uiLanguage: 'auto' };
   const owner = { isDestroyed: () => destroyed, webContents: { isDestroyed: () => senderDestroyed } };
   const context = vm.createContext({
     require(name) {
       if (name === 'electron') return { app, ipcMain: { handle: (name, handler) => handlers.set(name, handler) }, dialog, shell: {} };
       if (name === './local_pc.cjs') return { LocalPcStore: Store };
       if (name === './account_store.cjs') return { AccountStore: Store };
-      if (name === './config.cjs') return { loadSettings() {}, saveSettings() {} };
+      if (name === './config.cjs') return { loadSettings: () => settings, saveSettings: value => { settings = value; } };
       if (name === './titles.cjs') return { titleName: () => '' };
       if (name === './paths.cjs') return { resourceRoot: '/unused-confirmation-test', localWorkerElf: '', workDir: '/unused-confirmation-test', pythonBin: () => 'python3' };
       return actualRequire(name);
@@ -30,9 +33,34 @@ function fixture() {
   vm.runInContext(fs.readFileSync(mainPath, 'utf8'), context);
   vm.runInContext('window = owner;', context);
   const invoke = (message = 'Replace this save?', event = { sender: owner.webContents }) => handlers.get('app:confirm')(event, message);
-  return { owner, calls, dialog, context, invoke,
+  return { owner, calls, dialog, context, invoke, handlers,
     destroy: () => { destroyed = true; }, destroySender: () => { senderDestroyed = true; } };
 }
+
+test('settings reload only for a different effective language and reopens Settings', async t => {
+  const f = fixture();
+  t.after(() => i18n.setLanguage('en'));
+  const loads = [];
+  f.owner.loadFile = async (_file, { query }) => { loads.push(query); };
+  const frame = f.owner.webContents.mainFrame = {};
+  const event = { sender: f.owner.webContents, senderFrame: frame };
+  const save = f.handlers.get('settings:set');
+  const reload = f.handlers.get('settings:reload-language');
+  assert.equal(save(event, { uiLanguage: 'en' }), false);
+  assert.equal(save(event, { uiLanguage: 'zh-CN' }), true);
+  assert.equal(loads.length, 0);
+  assert.equal(await reload({ ...event, senderFrame: {} }), false);
+  vm.runInContext('active = {};', f.context);
+  assert.equal(await reload(event), false);
+  vm.runInContext('active = null;', f.context);
+  assert.equal(await reload(event), true);
+  assert.equal(loads.length, 1);
+  assert.equal(loads[0].language, 'zh-CN');
+  assert.equal(loads[0].page, 'settings');
+  assert.equal(i18n.t('Cancel'), '取消');
+  assert.equal(await reload(event), true);
+  assert.equal(loads.length, 1);
+});
 
 test('confirmation belongs to the current window and defaults to Cancel', async () => {
   const f = fixture();

@@ -7,6 +7,15 @@ const { groupEntries, createTree } = require('../electron/cmp_skin.js');
 const sourceRoot = path.join(__dirname, '..');
 const tick = () => new Promise((resolve) => setTimeout(resolve, 30));
 
+// Function Test Console
+async function discoverConsole(document) {
+  document.getElementById('discoverBtn').click(); await tick();
+  const ofw = document.querySelector('#consoleLocatorRows input[data-role="ofw"][value="192.168.0.125"]');
+  assert.ok(ofw, 'The discovered fixture PS5 was unavailable as an OFW target');
+  ofw.click(); await tick();
+  assert.equal(document.getElementById('consoleSelect').value, '192.168.0.125');
+}
+
 async function app() {
   const errors = [];
   const virtualConsole = new VirtualConsole();
@@ -92,7 +101,7 @@ test('layout switches persist and Classic remains available', async () => {
 test('remote tree filters owners and forwards original download entry IDs', async () => {
   const { dom, window, document, errors } = await app();
   try {
-    document.getElementById('discoverBtn').click(); await tick();
+    await discoverConsole(document);
     document.querySelector('[data-page="download"]').click();
     document.getElementById('downloadBtn').click(); await tick();
     const remote = document.getElementById('cmpRemoteTree');
@@ -113,7 +122,7 @@ test('remote tree filters owners and forwards original download entry IDs', asyn
 test('upload tree selects source entries without changing destination user', async () => {
   const { dom, window, document, errors } = await app();
   try {
-    document.getElementById('discoverBtn').click(); await tick();
+    await discoverConsole(document);
     document.querySelector('[data-page="upload"]').click();
     document.getElementById('uploadBtn').click(); await tick();
     const destination = document.getElementById('userSelect');
@@ -142,7 +151,7 @@ test('local tree opens Garlic actions and external-folder upload stays supported
     const exportAction = [...document.querySelectorAll('.cmp-context button')].find((button) => button.textContent === 'Export original');
     assert.ok(exportAction); exportAction.click(); await tick();
     assert.equal(window.cmpFixture.calls.exports[0].filename, 'sdimg_DATA');
-    document.getElementById('discoverBtn').click(); await tick();
+    await discoverConsole(document);
     document.querySelector('[data-page="upload"]').click();
     document.getElementById('uploadBtn').click(); await tick();
     document.getElementById('addExternalFolderBtn').click(); await tick();
@@ -216,7 +225,7 @@ test('changing skins during a reload keeps the latest user choice', async () => 
 test('color changes and reloads preserve remote, upload and local tree nodes and position', async () => {
   const { dom, window, document } = await app();
   try {
-    document.getElementById('discoverBtn').click(); await tick();
+    await discoverConsole(document);
     document.querySelector('[data-page="download"]').click();
     document.getElementById('downloadBtn').click(); await tick();
     document.getElementById('finishBtn').click(); await tick();
@@ -373,7 +382,7 @@ test('sidebar selector remains available in Garlic Classic and can restore a tre
 test('upload checkbox changes keep console and upload tree nodes in place', async () => {
   const { dom, window, document } = await app();
   try {
-    document.getElementById('discoverBtn').click(); await tick();
+    await discoverConsole(document);
     document.querySelector('[data-page="upload"]').click();
     document.getElementById('uploadBtn').click(); await tick();
     const remote = document.getElementById('cmpRemoteTree'), upload = document.getElementById('cmpUploadTree');
@@ -425,7 +434,7 @@ test('tree mode skips hidden Classic save tables and switching fills current dat
   try {
     const classicEntries = document.getElementById('entries');
     const placeholder = classicEntries.firstElementChild;
-    document.getElementById('discoverBtn').click(); await tick();
+    await discoverConsole(document);
     document.querySelector('[data-page="download"]').click();
     document.getElementById('downloadBtn').click(); await tick();
     assert.equal(classicEntries.firstElementChild, placeholder);

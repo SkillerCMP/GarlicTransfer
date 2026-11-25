@@ -100,7 +100,7 @@ async function app(t, remote, selectedId = TARGET, useCurrent = false, storedSta
     await until(() => document.querySelector('.wizard-panel[data-wizard="2"]').classList.contains('active'), 'Decrypted workspace did not open');
     await idle();
   }
-  return { dom, window: dom.window, document, state, calls, errors, idle, selectAndDecrypt };
+  return { dom, window: dom.window, document, state, calls, errors, info, idle, selectAndDecrypt };
 }
 
 for (const remote of [false, true]) {
@@ -112,7 +112,7 @@ for (const remote of [false, true]) {
     assert.equal(document.getElementById('encryptAccountId').value, TARGET);
     assert.equal(document.getElementById('targetAccountSelect').value, TARGET);
 
-    document.querySelector('#workspaceFiles tr').click();
+    document.querySelector('#workspaceFiles tr[data-file-path]').click();
     await until(() => !document.getElementById('fileEditorPanel').hidden, 'Workspace editor did not open');
     await f.idle();
     assert.equal(document.getElementById('encryptAccountId').value, TARGET, 'File refresh restored the source account over the selected target');
@@ -281,7 +281,7 @@ test('a manual target survives workspace file changes and resets for a new works
   await f.selectAndDecrypt();
   const target = document.getElementById('encryptAccountId');
   target.value = OTHER;
-  document.querySelector('#workspaceFiles tr').click();
+  document.querySelector('#workspaceFiles tr[data-file-path]').click();
   await until(() => !document.getElementById('fileEditorPanel').hidden, 'Workspace editor did not open');
   await f.idle();
   assert.equal(target.value, OTHER, 'Opening a file discarded the manual target');
@@ -296,14 +296,14 @@ test('a manual target survives workspace file changes and resets for a new works
     files: [{ path: 'DATA/save.dat', size: 8, protected: false }] };
   window.saveEditor.add = async () => ({ ...base, files: [...base.files, { path: 'added.dat', size: 8, protected: false }] });
   document.getElementById('addFilesBtn').click();
-  await until(() => document.querySelectorAll('#workspaceFiles tr').length === 2, 'Added file did not refresh the workspace');
+  await until(() => document.querySelectorAll('#workspaceFiles tr[data-file-path]').length === 2, 'Added file did not refresh the workspace');
   await f.idle();
   assert.equal(target.value, OTHER, 'Adding a file discarded the manual target');
-  [...document.querySelectorAll('#workspaceFiles tr')].find(row => row.textContent.includes('added.dat')).click();
+  [...document.querySelectorAll('#workspaceFiles tr[data-file-path]')].find(row => row.textContent.includes('added.dat')).click();
   await f.idle();
   window.saveEditor.delete = async () => plain(base);
   document.getElementById('deleteFileBtn').click();
-  await until(() => document.querySelectorAll('#workspaceFiles tr').length === 1, 'Deleted file did not refresh the workspace');
+  await until(() => document.querySelectorAll('#workspaceFiles tr[data-file-path]').length === 1, 'Deleted file did not refresh the workspace');
   await f.idle();
   assert.equal(target.value, OTHER, 'Deleting a file discarded the manual target');
   document.getElementById('encryptSaveBtn').click();
@@ -944,7 +944,7 @@ test('canceling the ZIP drop discard confirmation keeps the current edited works
   const f = await app(t, false);
   const { document, window, calls } = f;
   await f.selectAndDecrypt();
-  document.querySelector('#workspaceFiles tr').click();
+  document.querySelector('#workspaceFiles tr[data-file-path]').click();
   await f.idle();
   const editor = document.getElementById('fileEditor');
   editor.value = 'Keep these unsaved edits'; editor.dispatchEvent(new window.Event('input'));
@@ -966,7 +966,7 @@ test('a failed ZIP drop decryption keeps the old workspace and removes drag high
   const f = await app(t, false);
   const { document, window, calls } = f;
   await f.selectAndDecrypt();
-  document.querySelector('#workspaceFiles tr').click();
+  document.querySelector('#workspaceFiles tr[data-file-path]').click();
   await f.idle();
   const previousText = document.getElementById('fileEditor').value;
   window.saveEditor.run = async options => { calls.jobs.push(plain(options)); throw new Error('Test ZIP decrypt failed'); };
@@ -1028,5 +1028,294 @@ test('upload instructions close from their button and from normal transfer compl
     'Normal upload completion did not dismiss its instructions and restore idle controls');
   pending[1]();
   assert.equal(document.getElementById('confirmUploadBtn').hidden, true);
+  assert.deepEqual(f.errors, []);
+});
+
+// Function Workspace File
+function workspaceLeaf(f, path) {
+  return [...f.document.querySelectorAll('#workspaceFiles tr[data-file-path]')]
+    .find(row => row.dataset.filePath === path);
+}
+
+// Function Tree Action
+async function workspaceAction(f, path, action) {
+  const row = workspaceLeaf(f, path);
+  assert.ok(row, `The workspace tree is missing ${path}`);
+  row.dispatchEvent(new f.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 20, clientY: 30 }));
+  await until(() => f.document.querySelector(`#workspaceFileContextMenu button[data-action="${action}"]`),
+    `The workspace context menu is missing ${action}`);
+  const button = f.document.querySelector(`#workspaceFileContextMenu button[data-action="${action}"]`);
+  assert.equal(button.disabled, false, `${action} is unavailable for ${path}`);
+  button.click();
+}
+
+test('the decrypted tree replaces an unopened large nested file at its exact original path', async t => {
+  const f = await app(t, false);
+  const { document, window, calls, info } = f;
+  const path = 'DATA/slot one/save.dat';
+  info.files = [
+    { path, size: 9 * 1024 * 1024, protected: false },
+    { path: 'DATA/slot two/save.dat', size: 8, protected: false },
+    { path: 'chives.json', size: 20, protected: true },
+  ];
+  const reads = [], replacements = [];
+  window.saveEditor.read = async value => { reads.push(plain(value)); throw new Error('Large files cannot open in the editor'); };
+  window.saveEditor.replace = async value => {
+    replacements.push(plain(value));
+    return { ...plain(info), files: info.files.map(file => ({ ...file, size: file.path === path ? 10 * 1024 * 1024 : file.size })) };
+  };
+  await f.selectAndDecrypt();
+  assert.ok(document.querySelector('#workspaceFiles tr[data-folder-path="DATA"]'));
+  assert.ok(document.querySelector('#workspaceFiles tr[data-folder-path="DATA/slot one"]'));
+  await workspaceAction(f, path, 'replace');
+  await until(() => replacements.length === 1, 'Replacing the unopened tree leaf did not reach the bridge');
+  await f.idle();
+  assert.deepEqual(replacements, [{ root: info.root, path }]);
+  assert.deepEqual(reads, [], 'Replacing an unopened file must not try to read it into the editor');
+  assert.deepEqual([...document.querySelectorAll('#workspaceFiles tr[data-file-path]')].map(row => row.dataset.filePath).sort(),
+    [path, 'DATA/slot two/save.dat', 'chives.json'].sort());
+  assert.match(workspaceLeaf(f, path).textContent, /10240/);
+  assert.equal(document.getElementById('fileEditorPanel').hidden, true);
+  assert.match(document.getElementById('mySavesStatus').textContent, /replaced in the decrypted workspace/);
+  const prompts = [];
+  window.saveTransfer.confirm = async message => { prompts.push(message); return false; };
+  document.getElementById('closeWorkspaceBtn').click(); await f.idle();
+  assert.equal(prompts.length, 1, 'A successful replacement must mark the workspace as modified');
+  assert.match(prompts[0], /have not been encrypted/);
+  assert.ok(workspaceLeaf(f, path));
+  window.saveTransfer.confirm = async () => true;
+  document.getElementById('encryptSaveBtn').click();
+  await until(() => calls.encrypt.length === 1, 'The replaced workspace did not encrypt');
+  await f.idle();
+  assert.equal(calls.encrypt[0].accountId, TARGET);
+  assert.deepEqual(f.errors, []);
+});
+
+for (const remote of [false, true]) {
+  test(`replacing the current file refreshes its editor and retains the ${remote ? 'remote' : 'local'} encryption target`, async t => {
+    const f = await app(t, remote);
+    const { document, window, info, calls } = f;
+    const replacements = [], reads = [];
+    let replaced = false;
+    window.saveEditor.read = async value => {
+      reads.push(plain(value));
+      return { data: Buffer.from(replaced ? 'replacement content' : 'original content').toString('base64') };
+    };
+    window.saveEditor.replace = async value => {
+      replacements.push(plain(value)); replaced = true;
+      return { ...plain(info), files: info.files.map(file => ({ ...file, size: 19 })) };
+    };
+    await f.selectAndDecrypt();
+    workspaceLeaf(f, 'DATA/save.dat').click(); await f.idle();
+    const editor = document.getElementById('fileEditor');
+    editor.value = 'unsaved current content'; editor.dispatchEvent(new window.Event('input'));
+    const prompts = [];
+    window.saveTransfer.confirm = async message => { prompts.push(message); return true; };
+    document.getElementById('replaceFileBtn').click();
+    await until(() => replacements.length === 1 && editor.value === 'replacement content', 'The current editor did not refresh after replacement');
+    await f.idle();
+    assert.match(prompts[0], /Discard unsaved changes.*replace/i);
+    assert.deepEqual(replacements, [{ root: info.root, path: 'DATA/save.dat' }]);
+    assert.deepEqual(reads, [{ root: info.root, path: 'DATA/save.dat' }, { root: info.root, path: 'DATA/save.dat' }]);
+    assert.equal(document.getElementById('editorFileName').textContent, 'DATA/save.dat');
+    assert.equal(document.getElementById('saveFileBtn').textContent, 'Save changes');
+    document.getElementById('saveEncryptFileBtn').click();
+    await until(() => calls.encrypt.length === 1, 'Save and encrypt did not run after replacement');
+    await f.idle();
+    assert.equal(calls.writes[0].path, 'DATA/save.dat');
+    assert.equal(Buffer.from(calls.writes[0].data, 'base64').toString(), 'replacement content');
+    assert.equal(calls.encrypt[0].accountId, TARGET);
+    assert.equal(calls.encrypt[0].useRemoteOracle, remote);
+    assert.deepEqual(f.errors, []);
+  });
+}
+
+test('replacement cancellation and bridge failure preserve the current unsaved editor', async t => {
+  const f = await app(t, false);
+  const { document, window, info } = f;
+  const replacements = [];
+  let behavior = 'cancel';
+  window.saveEditor.replace = async value => {
+    replacements.push(plain(value));
+    if (behavior === 'fail') throw new Error('Test replacement failed');
+    return null;
+  };
+  await f.selectAndDecrypt();
+  workspaceLeaf(f, 'DATA/save.dat').click(); await f.idle();
+  const editor = document.getElementById('fileEditor');
+  editor.value = 'keep my unsaved bytes'; editor.dispatchEvent(new window.Event('input'));
+  window.saveTransfer.confirm = async () => false;
+  await workspaceAction(f, 'DATA/save.dat', 'replace'); await f.idle();
+  assert.equal(replacements.length, 0, 'Canceling discard must not open the replacement chooser');
+  window.saveTransfer.confirm = async () => true;
+  await workspaceAction(f, 'DATA/save.dat', 'replace'); await f.idle();
+  assert.deepEqual(replacements, [{ root: info.root, path: 'DATA/save.dat' }]);
+  assert.equal(editor.value, 'keep my unsaved bytes');
+  assert.match(document.getElementById('saveFileBtn').textContent, /\*/);
+  behavior = 'fail';
+  await workspaceAction(f, 'DATA/save.dat', 'replace');
+  await until(() => document.getElementById('mySavesStatus').textContent === 'Test replacement failed', 'Replacement failure was not reported');
+  await f.idle();
+  assert.equal(editor.value, 'keep my unsaved bytes');
+  assert.equal(document.getElementById('editorFileName').textContent, 'DATA/save.dat');
+  assert.equal(document.getElementById('saveFileBtn').disabled, false);
+  assert.equal(document.getElementById('targetAccountSelect').value, TARGET);
+  assert.deepEqual(f.errors, []);
+});
+
+test('replacing another leaf preserves the current dirty editor and a manual account target', async t => {
+  const f = await app(t, false, '');
+  const { document, window, info, calls } = f;
+  info.files.push({ path: 'OTHER/save.dat', size: 5, protected: false });
+  const reads = [], replacements = [], prompts = [];
+  window.saveEditor.read = async value => { reads.push(plain(value)); return { data: Buffer.from('original').toString('base64') }; };
+  window.saveEditor.replace = async value => { replacements.push(plain(value)); return plain(info); };
+  window.saveTransfer.confirm = async message => { prompts.push(message); return true; };
+  await f.selectAndDecrypt();
+  document.getElementById('encryptAccountId').value = OTHER;
+  workspaceLeaf(f, 'DATA/save.dat').click(); await f.idle();
+  const editor = document.getElementById('fileEditor');
+  editor.value = 'unsaved selected file'; editor.dispatchEvent(new window.Event('input'));
+  await workspaceAction(f, 'OTHER/save.dat', 'replace');
+  await until(() => replacements.length === 1, 'Replacing another leaf did not start');
+  await f.idle();
+  assert.deepEqual(replacements, [{ root: info.root, path: 'OTHER/save.dat' }]);
+  assert.deepEqual(reads, [{ root: info.root, path: 'DATA/save.dat' }]);
+  assert.deepEqual(prompts, [], 'Replacing another leaf must not discard or prompt about the current editor');
+  assert.equal(editor.value, 'unsaved selected file');
+  assert.equal(document.getElementById('editorFileName').textContent, 'DATA/save.dat');
+  assert.match(document.getElementById('saveFileBtn').textContent, /\*/);
+  assert.equal(document.getElementById('encryptAccountId').value, OTHER);
+  document.getElementById('saveEncryptFileBtn').click();
+  await until(() => calls.encrypt.length === 1, 'The preserved editor could not save and encrypt');
+  await f.idle();
+  assert.equal(calls.writes[0].path, 'DATA/save.dat');
+  assert.equal(Buffer.from(calls.writes[0].data, 'base64').toString(), 'unsaved selected file');
+  assert.equal(calls.encrypt[0].accountId, OTHER);
+  assert.deepEqual(f.errors, []);
+});
+
+test('a successful large current-file replacement stays successful without reading stale editor bytes', async t => {
+  const f = await app(t, false);
+  const { document, window, info, calls } = f;
+  let reads = 0, replacements = 0;
+  window.saveEditor.read = async () => {
+    reads++;
+    if (reads > 1) throw new Error('This file is larger than 8 MiB');
+    return { data: Buffer.from('old editor bytes').toString('base64') };
+  };
+  window.saveEditor.replace = async () => {
+    replacements++;
+    return { ...plain(info), files: info.files.map(file => ({ ...file, size: 9 * 1024 * 1024 })) };
+  };
+  await f.selectAndDecrypt();
+  workspaceLeaf(f, 'DATA/save.dat').click(); await f.idle();
+  await workspaceAction(f, 'DATA/save.dat', 'replace');
+  await until(() => replacements === 1, 'The current file replacement did not run');
+  await f.idle();
+  assert.equal(reads, 1, 'Large replaced files must not be loaded through the editor read limit');
+  assert.equal(document.getElementById('fileEditorPanel').hidden, true);
+  assert.match(document.getElementById('mySavesStatus').textContent, /replaced.*larger than 8 MiB/);
+  assert.equal(document.getElementById('saveFileBtn').disabled, true);
+  document.getElementById('saveFileBtn').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  await f.idle();
+  assert.deepEqual(calls.writes, [], 'Hidden stale editor content must not overwrite a large replacement');
+  assert.deepEqual(f.errors, []);
+});
+
+test('a replacement read-back failure reports the committed replacement and allows retrying the editor', async t => {
+  const f = await app(t, false);
+  const { document, window, info } = f;
+  let reads = 0;
+  window.saveEditor.read = async () => {
+    reads++;
+    if (reads === 2) throw new Error('Test editor read failed');
+    return { data: Buffer.from(reads > 2 ? 'replaced bytes' : 'old bytes').toString('base64') };
+  };
+  window.saveEditor.replace = async () => plain(info);
+  await f.selectAndDecrypt();
+  workspaceLeaf(f, 'DATA/save.dat').click(); await f.idle();
+  await workspaceAction(f, 'DATA/save.dat', 'replace');
+  await until(() => reads === 2, 'Replacement did not attempt to refresh the editor');
+  await f.idle();
+  assert.match(document.getElementById('mySavesStatus').textContent, /replaced.*retry opening/);
+  assert.equal(document.getElementById('fileEditorPanel').hidden, true);
+  workspaceLeaf(f, 'DATA/save.dat').click(); await f.idle();
+  assert.equal(document.getElementById('fileEditor').value, 'replaced bytes');
+  assert.equal(document.getElementById('fileEditorPanel').hidden, false);
+  assert.deepEqual(f.errors, []);
+});
+
+test('metadata replacement is available while protected-file deletion remains disabled', async t => {
+  const f = await app(t, false);
+  const { document, window, info } = f;
+  info.files.push({ path: 'sce_sys/param.sfo', size: 50, protected: true });
+  const replacements = [];
+  window.saveEditor.replace = async value => { replacements.push(plain(value)); return plain(info); };
+  await f.selectAndDecrypt();
+  await workspaceAction(f, 'sce_sys/param.sfo', 'replace');
+  await until(() => replacements.length === 1, 'Protected metadata could not be replaced like an editor write');
+  await f.idle();
+  assert.deepEqual(replacements, [{ root: info.root, path: 'sce_sys/param.sfo' }]);
+  workspaceLeaf(f, 'sce_sys/param.sfo').dispatchEvent(new window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+  assert.equal(document.querySelector('#workspaceFileContextMenu [data-action="delete"]').disabled, true);
+  assert.equal(document.querySelector('#workspaceFileContextMenu [data-action="replace"]').disabled, false);
+  assert.deepEqual(f.errors, []);
+});
+
+test('a pending replacement locks the workspace and retains its captured file target', async t => {
+  const f = await app(t, false);
+  const { document, window, info } = f;
+  info.files.push({ path: 'OTHER/save.dat', size: 8, protected: false });
+  const replacements = [], reads = [];
+  let release;
+  window.saveEditor.read = async value => { reads.push(plain(value)); return { data: Buffer.from('current bytes').toString('base64') }; };
+  window.saveEditor.replace = value => {
+    replacements.push(plain(value));
+    return new Promise(resolve => { release = () => resolve(plain(info)); });
+  };
+  await f.selectAndDecrypt();
+  workspaceLeaf(f, 'DATA/save.dat').click(); await f.idle();
+  await workspaceAction(f, 'OTHER/save.dat', 'replace');
+  await until(() => typeof release === 'function', 'Replacement did not wait for the native file choice');
+  workspaceLeaf(f, 'OTHER/save.dat').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  document.getElementById('replaceFileBtn').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  assert.equal(document.getElementById('closeWorkspaceBtn').disabled, true);
+  assert.equal(document.getElementById('fileEditor').disabled, true);
+  assert.equal(replacements.length, 1, 'A forced event started a second replacement while the chooser was pending');
+  assert.deepEqual(reads, [{ root: info.root, path: 'DATA/save.dat' }]);
+  release(); await f.idle();
+  assert.deepEqual(replacements, [{ root: info.root, path: 'OTHER/save.dat' }]);
+  assert.equal(document.getElementById('editorFileName').textContent, 'DATA/save.dat');
+  assert.equal(document.getElementById('fileEditor').disabled, false);
+  assert.deepEqual(f.errors, []);
+});
+
+test('tree export and delete act on the clicked leaf while preserving another open editor', async t => {
+  const f = await app(t, false);
+  const { document, window, info } = f;
+  info.files.push({ path: 'OTHER/save.dat', size: 8, protected: false });
+  const exports = [], deletions = [], prompts = [];
+  window.saveEditor.downloadFile = async value => { exports.push(plain(value)); return '/exports/save.dat'; };
+  window.saveEditor.delete = async value => {
+    deletions.push(plain(value));
+    return { ...plain(info), files: info.files.filter(file => file.path !== value.path) };
+  };
+  window.saveTransfer.confirm = async message => { prompts.push(message); return true; };
+  await f.selectAndDecrypt();
+  workspaceLeaf(f, 'DATA/save.dat').click(); await f.idle();
+  const editor = document.getElementById('fileEditor');
+  editor.value = 'preserve this draft'; editor.dispatchEvent(new window.Event('input'));
+  await workspaceAction(f, 'OTHER/save.dat', 'export');
+  await until(() => exports.length === 1, 'The tree export did not run'); await f.idle();
+  assert.deepEqual(exports, [{ root: info.root, path: 'OTHER/save.dat' }]);
+  await workspaceAction(f, 'OTHER/save.dat', 'delete');
+  await until(() => deletions.length === 1, 'The tree delete did not run'); await f.idle();
+  assert.deepEqual(deletions, [{ root: info.root, path: 'OTHER/save.dat' }]);
+  assert.deepEqual(prompts, ['Delete OTHER/save.dat from the decrypted workspace?']);
+  assert.equal(workspaceLeaf(f, 'OTHER/save.dat'), undefined);
+  assert.equal(document.getElementById('editorFileName').textContent, 'DATA/save.dat');
+  assert.equal(editor.value, 'preserve this draft');
+  assert.match(document.getElementById('saveFileBtn').textContent, /\*/);
   assert.deepEqual(f.errors, []);
 });

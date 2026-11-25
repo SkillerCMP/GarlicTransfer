@@ -6,6 +6,7 @@ import struct
 import tempfile
 import unittest
 import zipfile
+from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
 
@@ -25,7 +26,7 @@ class ResignTests(unittest.TestCase):
         template = Path(__file__).resolve().parent.parent / "poc" / "templates" / "single-save.db"
         metadata = metadata_dir / "metadata.db"
         shutil.copyfile(template, metadata)
-        with sqlite3.connect(metadata) as db:
+        with closing(sqlite3.connect(metadata)) as db, db:
             source_account = int("3e338f700e51db91", 16)
             db.execute("UPDATE user_info_tbl SET user_id = ?, account_id = ?", (int(SOURCE_USER, 16), source_account))
             row = db.execute("SELECT * FROM user_info_tbl").fetchone()
@@ -38,7 +39,6 @@ class ResignTests(unittest.TestCase):
                 "INSERT INTO dir_entry_info_tbl VALUES (?, ?, 1, 3, 0, '', '', ?, ?, ?, 0)",
                 (ENTRY_ID, f"/user/home/{SOURCE_USER}/savedata_prospero/{TITLE_ID}/", 8, 8, 8),
             )
-            db.commit()
         source_path = f"/user/home/{SOURCE_USER}/savedata_prospero/{TITLE_ID}/sdimg_TEST"
         payload = root / "Saves" / SOURCE_USER / TITLE_ID / "sdimg_TEST"
         payload.parent.mkdir(parents=True)
@@ -102,7 +102,7 @@ class ResignTests(unittest.TestCase):
                 second = auto_resign_entry_if_needed(root, metadata, ENTRY_ID, DEST_USER, "https://example.test", "key")
             self.assertEqual(first, second)
             self.assertEqual(resign.call_count, 1)
-            with sqlite3.connect(metadata) as db:
+            with closing(sqlite3.connect(metadata)) as db:
                 rows = db.execute("SELECT id, path FROM dir_entry_info_tbl WHERE id >= 100000").fetchall()
             self.assertEqual(len(rows), 1)
             output = root / "Saves" / DEST_USER / TITLE_ID / "sdimg_TEST"

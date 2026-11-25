@@ -94,7 +94,7 @@ body[data-layout="cmp"] #mySavesLog, body[data-layout="cmp"] .checkbox { color: 
 body[data-layout="cmp"] th { background: var(--bg-card); }
 body[data-layout="cmp"] th, body[data-layout="cmp"] td { border-bottom-color: var(--border); }
 body[data-layout="cmp"] tr:hover td { background: var(--skin-hover); }
-body[data-layout="cmp"] #pairingState.paired { color: var(--success); }
+body[data-layout="cmp"] #pairingState.paired { color: inherit; }
 
 /* Keep long names inside the narrow sidebar. */
 .cmp-brand img { flex: 0 0 auto; }

@@ -4,6 +4,7 @@
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.SkinAppearance = api;
 })(typeof window === 'object' ? window : globalThis, function build() {
+  const { t: uiText } = typeof module === 'object' && module.exports ? require('./i18n.js') : globalThis.GarlicI18n;
   // Function Skin Controls
   function create(document, bridge, onApply) {
     const byId = (id) => document.getElementById(id);
@@ -24,7 +25,7 @@
         const item = document.createElement('li'); item.textContent = message; return item;
       }));
       warningBox.hidden = !warnings.length;
-      byId('skinWarningSummary').textContent = `Skin warnings (${warnings.length})`;
+      byId('skinWarningSummary').textContent = uiText`Skin warnings (${warnings.length})`;
     }
 
     // Function Mascot Display
@@ -105,13 +106,13 @@
         const option = (name, value) => {
           const item = document.createElement('option'); item.textContent = name; item.value = value; return item;
         };
-        select.replaceChildren(option('Garlic Classic', 'classic'), ...catalog.map((skin) => option(skin.name, skin.id)));
+        select.replaceChildren(option(uiText('Garlic Classic'), 'classic'), ...catalog.map((skin) => option(skin.name, skin.id)));
         select.value = catalog.some((skin) => skin.id === selected) ? selected : 'classic';
         apply(select.value);
-        const missing = selected && selected !== select.value ? 'Selected skin unavailable; showing Garlic Classic. ' : '';
-        status.textContent = missing + `${catalog.length} tree skins loaded. Choose a skin to save it.`;
+        const missing = selected && selected !== select.value ? uiText('Selected skin unavailable; showing Garlic Classic. ') : '';
+        status.textContent = missing + uiText`${catalog.length} tree skins loaded. Choose a skin to save it.`;
       } catch (error) {
-        if (current === request) status.textContent = `Could not load skins: ${error.message}`;
+        if (current === request) status.textContent = uiText`Could not load skins: ${error.message}`;
       }
     }
 
@@ -122,15 +123,15 @@
       saves = saves.then(async () => {
         const settings = await bridge.getSettings();
         await bridge.saveSettings({ ...settings, uiLayout: id });
-        if (revision === choice) status.textContent = 'Skin saved.';
+        if (revision === choice) status.textContent = uiText('Skin saved.');
       }).catch((error) => {
-        if (revision === choice) status.textContent = `Skin changed but could not be saved: ${error.message}`;
+        if (revision === choice) status.textContent = uiText`Skin changed but could not be saved: ${error.message}`;
       });
     });
     byId('reloadSkins').addEventListener('click', () => reload());
     byId('openSkinsFolder').addEventListener('click', async () => {
       try { await bridge.openSkinsFolder(); }
-      catch (error) { status.textContent = `Could not open skins folder: ${error.message}`; }
+      catch (error) { status.textContent = uiText`Could not open skins folder: ${error.message}`; }
     });
     return { apply, reload };
   }

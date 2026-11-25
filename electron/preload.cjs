@@ -48,6 +48,8 @@ contextBridge.exposeInMainWorld('saveTransfer', {
   exportEntryZip: (output, entryId, suggestedName) => ipcRenderer.invoke('dialog:export-zip', { output, entryId, suggestedName }),
   pair: (options) => ipcRenderer.invoke('transfer:pair', options),
   pairingStatus: (identity) => ipcRenderer.invoke('transfer:pair-status', identity),
+  pairingInfo: (identity) => ipcRenderer.invoke('transfer:pair-info', identity),
+  pairingInfos: (identities) => ipcRenderer.invoke('transfer:pair-infos', identities),
   download: (options) => ipcRenderer.invoke('transfer:download', options),
   select: (entryIds) => ipcRenderer.invoke('transfer:select', entryIds),
   finish: () => ipcRenderer.invoke('transfer:finish'),
@@ -69,6 +71,7 @@ contextBridge.exposeInMainWorld('saveTransfer', {
   cancel: () => ipcRenderer.invoke('transfer:cancel'),
   getSettings: () => ipcRenderer.invoke('settings:get'),
   saveSettings: (settings) => ipcRenderer.invoke('settings:set', settings),
+  reloadLanguage: () => ipcRenderer.invoke('settings:reload-language'),
   version: () => ipcRenderer.invoke('app:version'),
   onEvent: (callback) => {
     const listener = (_event, detail) => callback(detail);
@@ -89,6 +92,7 @@ contextBridge.exposeInMainWorld('saveEditor', {
   read: (options) => ipcRenderer.invoke('save-editor:read', options),
   write: (options) => ipcRenderer.invoke('save-editor:write', options),
   add: (root) => ipcRenderer.invoke('save-editor:add', { root }),
+  replace: (options) => ipcRenderer.invoke('save-editor:replace', options),
   delete: (options) => ipcRenderer.invoke('save-editor:delete', options),
   downloadFile: (options) => ipcRenderer.invoke('save-editor:download-file', options),
   downloadArchive: (archivePath) => ipcRenderer.invoke('save-editor:download-archive', { archivePath }),

@@ -3,11 +3,11 @@ import sqlite3
 import struct
 import tempfile
 import unittest
-from contextlib import closing, redirect_stdout
+from contextlib import closing, contextmanager, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
-from poc import dt_backend, dt_download, dt_ftp_server, dt_source
+from poc import dt_backend, dt_download, dt_ftp_server, dt_resign, dt_source
 
 
 class SqliteLifecycleTests(unittest.TestCase):
@@ -86,6 +86,91 @@ class SqliteLifecycleTests(unittest.TestCase):
 
     def test_metadata_readers_close_when_queries_fail(self):
         self.check_readers(fails=True)
+
+
+class ResignSqliteLifecycleTests(unittest.TestCase):
+    def assert_closed(self, opened):
+        """Check database cleanup."""
+        for db in opened:
+            with self.assertRaises(sqlite3.ProgrammingError):
+                db.execute("SELECT 1")
+
+    @contextmanager
+    def tracked_connections(self, fault=lambda index, sql: None):
+        """Track real resign connections."""
+        connect = sqlite3.connect
+        temporary_directory = tempfile.TemporaryDirectory
+        local_copy = dt_resign._local_readable_copy
+        opened = []
+
+        class Connection(sqlite3.Connection):
+            def execute(db, sql, *args, **kwargs):
+                error = fault(db.lifecycle_index, sql)
+                if error is not None:
+                    raise error
+                return super().execute(sql, *args, **kwargs)
+
+        def track(*args, **kwargs):
+            kwargs["factory"] = Connection
+            db = connect(*args, **kwargs)
+            db.lifecycle_index = len(opened)
+            opened.append(db)
+            return db
+
+        @contextmanager
+        def checked_temporary_directory(*args, **kwargs):
+            with temporary_directory(*args, **kwargs) as folder:
+                try:
+                    yield folder
+                finally:
+                    try:
+                        self.assert_closed(opened)
+                    finally:
+                        for db in opened:
+                            db.close()
+
+        def checked_copy(*args, **kwargs):
+            self.assert_closed(opened)
+            return local_copy(*args, **kwargs)
+
+        try:
+            with patch("sqlite3.connect", side_effect=track), \
+                 patch("tempfile.TemporaryDirectory", side_effect=checked_temporary_directory), \
+                 patch.object(dt_resign, "_local_readable_copy", side_effect=checked_copy):
+                yield opened
+            self.assertTrue(opened)
+            self.assert_closed(opened)
+        finally:
+            for db in opened:
+                db.close()
+
+    def test_resign_queries_close_on_success_error_and_fallback(self):
+        query = "SELECT value FROM sample"
+        cases = [
+            ("direct success", query, {}, None, 1),
+            ("direct error", query, {0: sqlite3.DatabaseError("query failed")}, sqlite3.DatabaseError, 1),
+            ("fallback success", query, {0: sqlite3.OperationalError("stale journal")}, None, 2),
+            ("missing table", "SELECT value FROM missing", {}, sqlite3.OperationalError, 2),
+            ("fallback error", query, {0: sqlite3.OperationalError("stale journal"),
+                                       1: sqlite3.DatabaseError("fallback failed")}, sqlite3.DatabaseError, 2),
+        ]
+        for name, selected_query, errors, expected_error, count in cases:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as folder:
+                metadata = Path(folder) / "metadata.db"
+                with closing(sqlite3.connect(metadata)) as db, db:
+                    db.execute("CREATE TABLE sample (value)")
+                    db.execute("INSERT INTO sample VALUES (42)")
+
+                def fault(index, sql):
+                    return errors.get(index) if sql == selected_query else None
+
+                with self.tracked_connections(fault) as opened:
+                    if expected_error:
+                        with self.assertRaises(expected_error):
+                            dt_resign._robust_query(metadata, selected_query)
+                    else:
+                        self.assertEqual(dt_resign._robust_query(metadata, selected_query), [(42,)])
+                    self.assertEqual(len(opened), count)
 
 
 if __name__ == "__main__":

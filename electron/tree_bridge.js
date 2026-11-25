@@ -4,6 +4,7 @@
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.SaveTreeBridge = api;
 })(typeof window === 'object' ? window : globalThis, function build(tree) {
+  const { t: uiText } = typeof module === 'object' && module.exports ? require('./i18n.js') : globalThis.GarlicI18n;
   // Function Save File Key
   function fileKey(entry, file) { return `${tree.saveKey(entry)}:${JSON.stringify([file.file, file.path || ''])}`; }
 
@@ -13,7 +14,7 @@
 
     // Function Upload Selection
     function updateSelection() {
-      summary.textContent = `${select.selectedOptions.length} save entries selected across source users.`;
+      summary.textContent = uiText`${select.selectedOptions.length} save entries selected across source users.`;
       layout.syncSelection();
     }
 
@@ -33,14 +34,14 @@
       }
       optionsById = new Map([...select.options].map((option) => [option.value, option]));
       const entries = [...select.options].map((option) => option.value === 'external'
-        ? { id: 'external', owner: 'external', title: title.value.trim().toUpperCase() || 'External save', name: 'External upload', external: option.textContent }
+        ? { id: 'external', owner: 'external', title: title.value.trim().toUpperCase() || 'External save', name: uiText('External upload'), external: option.textContent }
         : entriesById.get(option.value) || { id: option.value, owner: 'console', title: option.textContent });
       layout.setUpload({ entries,
         selected: () => [...select.selectedOptions].map((option) => option.value),
         onToggle: toggle,
         actions: (entry) => {
           const option = optionsById.get(String(entry.id));
-          return [{ label: option?.selected ? 'Unselect save' : 'Select save', run: () => toggle([entry.id], !option?.selected) }];
+          return [{ label: option?.selected ? uiText('Unselect save') : uiText('Select save'), run: () => toggle([entry.id], !option?.selected) }];
         },
       });
       updateSelection();
@@ -90,7 +91,7 @@
         onOpen: (entry, file) => {
           const save = savesByFile.get(fileKey(entry, file)); if (save && !isBusy()) return openSave(save);
         },
-        fileActions: (entry, file) => actions.map(([label, action]) => ({ label, disabled: isBusy(), run: () => {
+        fileActions: (entry, file) => actions.map(([label, action]) => ({ label: uiText(label), disabled: isBusy(), run: () => {
           const save = savesByFile.get(fileKey(entry, file));
           if (!save || isBusy()) return;
           return openSave(save, action);

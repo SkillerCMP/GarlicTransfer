@@ -59,7 +59,7 @@
     </div>
 
     <div id="cmpConnection" class="cmp-connection cmp-only" hidden>
-      <label>Target PS5<span id="cmpTarget" class="cmp-target">Locate a PS5 to begin</span></label>
+      <label><span id="cmpTargetLabel">Source/Receiving PS5</span><span id="cmpTarget" class="cmp-target">Locate a PS5 to begin</span></label>
       <label>JB helper PS5 IPv4<input id="cmpOracleHost" spellcheck="false" placeholder="192.168.0.125"></label>
       <label class="cmp-worker"><input id="cmpWorker" type="checkbox"> Use GarlicWorker</label>
       <button id="cmpConnectionSettings" type="button">Connection settings</button>
@@ -70,18 +70,29 @@
       <!-- ═══ Console ═══ -->
       <section id="consolePage" class="page">
         <div class="page-header">
-          <h2>Console Connection</h2>
-          <p class="page-desc">Discover your PS5 on the network and pair it for save transfers.</p>
+          <h2>Locate PS5</h2>
+          <p class="page-desc">Find PlayStations and choose your JB helper and source or receiving PS5.</p>
         </div>
 
         <div class="card">
-          <h3>Discover consoles</h3>
-          <div class="discover-group">
-            <label>Available consoles
-              <select id="consoleSelect"><option value="">Discover and select a console</option></select>
-            </label>
-            <button id="discoverBtn" class="btn-primary" type="button">Discover</button>
+          <div class="console-locator-heading">
+            <h3>Find PlayStations</h3>
+            <button id="discoverBtn" class="btn-primary" type="button">Find PlayStations</button>
           </div>
+          <p class="card-hint">Choose JB for your jailbroken helper, or OFW for the PS5 you transfer saves from or to.</p>
+          <select id="consoleSelect" hidden aria-hidden="true" tabindex="-1"><option value="">Choose an OFW PS5</option></select>
+          <div class="table-wrap console-locator-table" role="region" aria-label="PlayStations on the network" tabindex="0">
+            <table>
+              <thead><tr><th scope="col">Console name</th><th scope="col">Type</th><th scope="col">IPv4 address</th><th scope="col">Firmware</th><th scope="col">Console ID</th><th scope="col">Pairing</th><th scope="col">JB</th><th scope="col">OFW</th></tr></thead>
+              <tbody id="consoleLocatorRows"></tbody>
+            </table>
+          </div>
+          <div class="console-locator-current">
+            <label><span id="transferConsoleLabel">Source/Receiving PS5</span>
+              <input id="transferConsoleHost" readonly spellcheck="false" placeholder="Choose OFW in the list">
+            </label>
+          </div>
+          <p id="consoleLocatorStatus" class="card-hint" role="status" aria-live="polite">Find PlayStations to choose a console.</p>
           <details class="manual-drawer">
             <summary>Enter IP address manually</summary>
             <div class="manual-group">
@@ -326,9 +337,9 @@
               </div>
               <div class="workspace-grid">
                 <div class="table-wrap workspace-files">
-                  <table>
+                  <table class="workspace-tree-table" role="treegrid" aria-label="Decrypted save files">
                     <thead><tr><th>File</th><th>Size</th></tr></thead>
-                    <tbody id="workspaceFiles"></tbody>
+                    <tbody id="workspaceFiles" role="rowgroup"></tbody>
                   </table>
                 </div>
                 <div id="fileEditorPanel" class="file-editor" hidden>
@@ -354,6 +365,7 @@
                     <div class="dropdown" id="fileMoreMenu">
                       <button id="fileMoreBtn" class="editor-btn" type="button" aria-haspopup="true" aria-expanded="false">More ▾</button>
                       <div id="fileMoreOptions" class="dropdown-content" hidden>
+                        <button id="replaceFileBtn" type="button">Replace file…</button>
                         <button id="downloadFileBtn" type="button">Export file</button>
                         <button id="deleteFileBtn" class="danger" type="button">Delete file</button>
                       </div>
@@ -379,6 +391,13 @@
         </div>
 
         <div class="card">
+          <label>Language
+            <select id="uiLanguage"><option value="auto">Automatic (system language)</option></select>
+          </label>
+          <p class="card-hint">Saving a different language reloads this window when it is safe to do so.</p>
+        </div>
+
+        <div class="card">
           <h3>Transfer paths</h3>
           <div class="settings-grid">
             <label>Console profile root folder
@@ -395,6 +414,10 @@
 
         <div class="card">
           <h3>Oracle</h3>
+          <label class="jb-firmware-setting">Maximum JB firmware
+            <input id="jbFirmwareLimit" value="13.60" inputmode="decimal" spellcheck="false" placeholder="13.60" aria-describedby="jbFirmwareHint">
+          </label>
+          <p id="jbFirmwareHint" class="card-hint">PS5 firmware at or below this version can be selected as JB. Update this limit when a newer firmware is supported.</p>
           <label class="checkbox"><input id="useRemoteOracle" type="checkbox" checked> Use remote oracle (no jailbroken console needed)</label>
           <p class="card-hint">Volunteer-run workers derive your save encryption keys. Default server key included &mdash; change only if you have your own.</p>
           <p class="card-hint">This choice also applies to Encrypt, Decrypt and Resign. Turn it off to use your jailbroken PS5 at the local oracle IP.</p>
@@ -509,13 +532,18 @@
       <button id="cancelImportBtn" type="button">Cancel</button>
     </div>
   </dialog>
+  <script src="i18n.js"></script>
+  <script src="locales/zh-CN.js"></script>
   <script src="folder_paths.js"></script>
   <script src="cmp_skin.js"></script>
   <script src="tree_bridge.js"></script>
   <script src="skin_appearance.js"></script>
   <script src="download_search.js"></script>
+  <script src="console_info.js"></script>
+  <script src="console_locator.js"></script>
   <script src="renderer.js"></script>
   <script src="accounts_ui.js"></script>
+  <script src="workspace_tree.js"></script>
   <script src="my_saves.js"></script>
 </body>
 </html>

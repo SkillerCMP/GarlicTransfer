@@ -62,6 +62,13 @@ Do not run the whole Electron application as root. Upload will display a PolicyK
 
 Open **Settings** in the app and choose **Save settings** to create `config.ini`. This file may contain your worker key and is deliberately excluded from git. `config.example.ini` documents the available settings.
 
+**Settings → Language** offers Automatic (system language), English, and
+简体中文 (Simplified Chinese). Saving a different interface language reloads
+the Settings view. If a transfer or editing session is open, finish it and
+save settings again to apply the language. Automatic uses the operating
+system's preferred languages and falls back to English. See
+[the locale directory](electron/locales/README.md) to add a translation.
+
 Oracle choices:
 
 - **Volunteer workers:** enter the HTOS server URL and a worker/API key from the server's Contribute page. The server must support `ppr_derive`; the corresponding worker implementation is in garlic-worker 1.1.7 or newer.

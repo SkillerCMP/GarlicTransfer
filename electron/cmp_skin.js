@@ -4,6 +4,7 @@
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.CmpSkin = api;
 })(typeof window === 'object' ? window : globalThis, function buildSkin() {
+  const { t: uiText } = typeof module === 'object' && module.exports ? require('./i18n.js') : globalThis.GarlicI18n;
   // Function File Size
   function sizeText(value) {
     const bytes = Number(value) || 0;
@@ -143,7 +144,7 @@
     function checkbox(ids, label, key) {
       ids = [...new Set(ids.map(String))];
       const check = node('input', 'cmp-check'); check.type = 'checkbox';
-      check.dataset.treeFocus = key; check.setAttribute('aria-label', `Select ${label}`);
+      check.dataset.treeFocus = key; check.setAttribute('aria-label', uiText`Select ${label}`);
       check.addEventListener('click', (event) => event.stopPropagation());
       check.addEventListener('change', () => {
         if (current.busy) return;
@@ -167,13 +168,13 @@
     // Function Action Button
     function actionButton(getAction, key) {
       const value = getAction();
-      const button = node('button', 'cmp-tree-action', value?.label || 'Action'); button.type = 'button';
+      const button = node('button', 'cmp-tree-action', value?.label || uiText('Action')); button.type = 'button';
       button.dataset.treeFocus = key;
       button.addEventListener('click', (event) => {
         event.stopPropagation(); const action = getAction();
         if (!current.busy && action && !action.disabled) action.run();
       });
-      buttons.push({ button, action: getAction, label: value?.label || 'Action' }); return button;
+      buttons.push({ button, action: getAction, label: value?.label || uiText('Action') }); return button;
     }
 
     // Function Tree Refresh
@@ -201,14 +202,14 @@
       if (signature === nextSignature) { syncSelection(); return; }
       signature = nextSignature; closeMenu(); stateVersion++; checks = []; buttons = []; selectedRows = [];
       container.replaceChildren();
-      if (!entries.length) container.appendChild(node('p', 'cmp-empty', options.emptyText || 'No saves in this view.'));
+      if (!entries.length) container.appendChild(node('p', 'cmp-empty', options.emptyText || uiText('No saves in this view.')));
       else {
         const names = new Map((options.users || []).map((user) => [String(user.id).toLowerCase(), user.name]));
         const tree = node('div', 'cmp-tree-content');
         for (const [owner, games] of groupEntries(entries)) {
           const userEntries = [...games.values()].flat();
-          const label = names.get(owner) ? `${names.get(owner)} · ${owner}` : owner === 'external' ? 'External upload' : `User ${owner}`;
-          const user = branch(`u:${owner}`, label, `${games.size} game${games.size === 1 ? '' : 's'}`, userEntries.map((entry) => entry.id));
+          const label = names.get(owner) ? `${names.get(owner)} · ${owner}` : owner === 'external' ? uiText('External upload') : uiText`User ${owner}`;
+          const user = branch(`u:${owner}`, label, uiText`${games.size} game${games.size === 1 ? '' : 's'}`, userEntries.map((entry) => entry.id));
           for (const [title, items] of games) {
             const first = items[0];
             const name = first.name && first.name !== 'Unknown title' ? `${first.name} · ${title}` : title;
@@ -225,7 +226,7 @@
               const files = [...fileMap.get(key).values()];
               if (!files.length) {
                 const line = node('div', 'cmp-tree-row cmp-file-placeholder');
-                line.appendChild(node('span', 'cmp-tree-label', entry.external ? entry.external : `Save entry ${entry.id} · ${entry.downloaded ? 'Downloaded' : 'Download to view files'}`));
+                line.appendChild(node('span', 'cmp-tree-label', entry.external ? entry.external : uiText`Save entry ${entry.id} · ${uiText(entry.downloaded ? 'Downloaded' : 'Download to view files')}`));
                 if (items.length > 1 && options.onToggle) line.prepend(checkbox([entry.id], `save entry ${entry.id}`, `${key}:check`));
                 if (getActions().length && items.length > 1) line.appendChild(actionButton(() => getActions()[0], `${key}:action`));
                 context(line, getActions); game.details.appendChild(line);
@@ -293,7 +294,7 @@
       const candidates = local ? (libraryData?.users || []) : users;
       const owners = new Map(candidates.map((user) => [String(user.id).toLowerCase(), user.name]));
       for (const entry of entries) if (entry.owner && entry.owner !== 'external') owners.set(String(entry.owner).toLowerCase(), owners.get(String(entry.owner).toLowerCase()) || entry.owner);
-      const all = document.createElement('option'); all.value = ''; all.textContent = 'All users';
+      const all = document.createElement('option'); all.value = ''; all.textContent = uiText('All users');
       filter.replaceChildren(all);
       for (const [id, name] of owners) {
         const option = document.createElement('option'); option.value = id; option.textContent = name && name !== id ? `${name} · ${id}` : id;
@@ -316,22 +317,22 @@
     function renderRemote() {
       remote.render({ entries: visible(remoteEntries, remoteFilter).map((entry) => ({ ...entry, downloaded: entry.downloaded || files(entry).length > 0 })), users, files, busy,
         selected: callbacks.remoteSelection, onToggle: callbacks.toggleRemote,
-        actions: (entry) => [{ label: entry.downloaded ? 'Download again' : 'Download', run: () => callbacks.download(entry.id) }],
-        emptyText: remoteEntries.length ? 'No saves for this user.' : 'Browse the console to load its users and saves.' });
+        actions: (entry) => [{ label: entry.downloaded ? uiText('Download again') : uiText('Download'), run: () => callbacks.download(entry.id) }],
+        emptyText: remoteEntries.length ? uiText('No saves for this user.') : uiText('Browse the console to load its users and saves.') });
     }
 
     // Function Upload Tree
     function renderUpload() {
       if (!uploadData) return;
       upload.render({ ...uploadData, entries: visible(uploadData.entries, remoteFilter), users, files, busy,
-        emptyText: 'Download a save or add an external save folder to upload.' });
+        emptyText: uiText('Download a save or add an external save folder to upload.') });
     }
 
     // Function Local Tree
     function renderLibrary() {
       if (!libraryData) return;
       library.render({ ...libraryData, entries: visible(libraryData.entries, localFilter), busy: busy || libraryBusy,
-        emptyText: 'No downloaded saves for this user. Refresh local files or download from the console.' });
+        emptyText: uiText('No downloaded saves for this user. Refresh local files or download from the console.') });
     }
 
     filter.addEventListener('change', () => {
@@ -345,7 +346,7 @@
       if (document.body.dataset.layout === (next ? 'cmp' : 'classic') && active === next) return false;
       active = next;
       document.body.dataset.layout = active ? 'cmp' : 'classic';
-      for (const [button, label] of originalLabels) button.textContent = active ? labels[button.dataset.page] || label : label;
+      for (const [button, label] of originalLabels) button.textContent = active ? uiText(labels[button.dataset.page] || label) : label;
       byId('cmpConnection').hidden = !active;
       for (const tree of [remote, upload, library]) tree.closeMenu();
       return true;

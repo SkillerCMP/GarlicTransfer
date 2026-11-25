@@ -66,6 +66,7 @@ import subprocess
 import tempfile
 import time
 import zipfile
+from contextlib import closing
 from pathlib import Path
 
 from poc.dt_layout import (
@@ -101,12 +102,12 @@ def _local_readable_copy(metadata_path, tmp_dir):
 def _robust_query(metadata_path, sql, params=()):
     """Run a read-only query, transparently recovering from a stale journal."""
     try:
-        with sqlite3.connect(f"file:{metadata_path}?mode=ro", uri=True) as con:
+        with closing(sqlite3.connect(f"file:{metadata_path}?mode=ro", uri=True)) as con:
             return con.execute(sql, params).fetchall()
     except sqlite3.OperationalError:
         with tempfile.TemporaryDirectory() as tmp:
             local_copy = _local_readable_copy(metadata_path, tmp)
-            with sqlite3.connect(local_copy) as con:
+            with closing(sqlite3.connect(local_copy)) as con:
                 return con.execute(sql, params).fetchall()
 
 

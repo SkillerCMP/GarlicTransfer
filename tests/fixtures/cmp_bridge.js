@@ -24,7 +24,7 @@
     pairingAvailable: true, firewallAvailable: false,
     getSettings: async () => ({ ...settings }), saveSettings: async (value) => { settings = { ...value }; calls.settings.push(value); },
     version: async () => '0.3.1-cmp-skin1', pairingStatus: async () => true,
-    discover: async () => [{ host: '192.168.0.125', hostId: 'HOST1', firmware: '13600000', name: 'PS5 · Demo' }],
+    discover: async () => [{ type: 'PS5', host: '192.168.0.125', hostId: 'HOST1', firmware: '13600000', name: 'PS5 · Demo' }],
     localProfiles: async () => ({ profiles: [{ id: 'HOST1', name: 'Demo console', path: '/profiles/HOST1', users: users.map((user) => user.id), save_count: 6 }] }),
     localSaves: async () => ({ entries: local, warnings: [] }), users: async () => users,
     inventory: async () => ({ entries, users }),

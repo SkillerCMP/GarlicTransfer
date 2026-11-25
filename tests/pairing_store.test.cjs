@@ -40,8 +40,8 @@ test('pairing UI uses instructions and a green paired state without account ID o
   assert.match(html, /GarlicTransfer Pairing/);
   assert.doesNotMatch(html, /accountId|findAccountIdBtn/);
   assert.match(renderer, /event\.type === 'pairingStarted'/);
-  assert.match(renderer, /event\.type === 'paired'[\s\S]*?hidePairingModal\(\)[\s\S]*?classList\.add\('paired'\)/);
-  assert.match(style, /#pairingState\.paired\s*\{[^}]*color:\s*#[0-9a-f]{6}/i);
+  assert.match(renderer, /event\.type === 'paired'[\s\S]*?hidePairingModal\(\)[\s\S]*?refreshLocatorPairing\(\)/);
+  assert.match(style, /#pairingState\.paired\s*\{[^}]*border-left:[^}]*var\(--success\)/i);
   assert.doesNotMatch(main, /dialog:account-id|accountIdFromBackupDirectory/);
 });
 

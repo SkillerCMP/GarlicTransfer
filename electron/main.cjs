@@ -8,8 +8,9 @@ const net = require('node:net');
 const path = require('node:path');
 const { startRemoteOracle, stopRemoteOracle } = require('./remote_oracle.cjs');
 const { loadSettings, saveSettings } = require('./config.cjs');
+const i18n = require('./i18n.js');
 const { titleName } = require('./titles.cjs');
-const { pairingPrefixPath, existingPairingPrefix } = require('./pairing_store.cjs');
+const { pairingPrefixPath, existingPairingPrefix, pairingInfo, pairingInfos } = require('./pairing_store.cjs');
 const { registerSaveEditor } = require('./save_editor.cjs');
 const { LocalPcStore } = require('./local_pc.cjs');
 const { AccountStore } = require('./account_store.cjs');
@@ -18,6 +19,7 @@ const { LocalHelper } = require('./local_helper.cjs');
 const { recordConsoleNames } = require('./console_names.cjs');
 const { resourceRoot, localWorkerElf, workDir, pythonBin } = require('./paths.cjs');
 let window;
+let interfaceLanguage = 'en';
 let active = null;
 let oracleRelay = null;
 let confirmationPending = false;
@@ -256,7 +258,11 @@ function getConsoles(options) {
       if (code !== 0) return reject(new Error(buffer.trim() || 'console discovery failed'));
       try {
         const consoles = JSON.parse(buffer).consoles || [];
-        recordConsoleNames(options.profileRoot || options.output, consoles);
+        const selectedId = String(options.hostId || '').trim().toUpperCase();
+        const namedConsoles = consoles.map(console => typeof options.profileId === 'string' && selectedId
+          && typeof console.hostId === 'string' && console.hostId.trim().toUpperCase() === selectedId
+          ? { ...console, profileId: options.profileId } : console);
+        recordConsoleNames(options.profileRoot || options.output, namedConsoles);
         resolve(consoles);
       } catch (error) {
         reject(error);
@@ -515,12 +521,31 @@ function finish(error, session = active) {
   else if (current && !current.completed) send('status', { message: 'Transfer stopped.' });
 }
 
+function resolvedInterfaceLanguage(preference) {
+  return i18n.resolve(preference, app.getPreferredSystemLanguages());
+}
+
+async function loadInterface(language, page) {
+  const previous = interfaceLanguage;
+  interfaceLanguage = language;
+  i18n.setLanguage(language);
+  const query = page ? { language, page } : { language };
+  try {
+    await window.loadFile(path.join(__dirname, 'index.html'), { query });
+  } catch (error) {
+    interfaceLanguage = previous;
+    i18n.setLanguage(previous);
+    throw error;
+  }
+}
+
 app.whenReady().then(() => {
   window = new BrowserWindow({
     width: 1380,
     height: 900,
     minWidth: 1000,
     minHeight: 680,
+    autoHideMenuBar: process.platform !== 'darwin',
     backgroundColor: '#11151b',
     icon: path.join(__dirname, 'icon.png'),
     webPreferences: {
@@ -531,7 +556,7 @@ app.whenReady().then(() => {
     },
   });
   registerAccountClose({ app, window, ipcMain, dialog, onError: error => send('log', { message: `Account close: ${error.message}` }) });
-  window.loadFile(path.join(__dirname, 'index.html'));
+  return loadInterface(resolvedInterfaceLanguage(loadSettings().uiLanguage));
 });
 
 app.on('will-quit', stopActive);
@@ -548,7 +573,7 @@ ipcMain.handle('dialog:output', async () => {
 ipcMain.handle('dialog:metadata', async () => {
   const result = await dialog.showOpenDialog(window, {
     properties: ['openFile'],
-    filters: [{ name: 'SQLite metadata', extensions: ['db'] }, { name: 'All files', extensions: ['*'] }],
+    filters: [{ name: i18n.t('SQLite metadata'), extensions: ['db'] }, { name: i18n.t('All files'), extensions: ['*'] }],
   });
   return result.canceled ? null : result.filePaths[0];
 });
@@ -566,7 +591,7 @@ ipcMain.handle('dialog:external-folder', async () => {
 ipcMain.handle('dialog:external-save', async () => {
   const result = await dialog.showOpenDialog(window, {
     properties: ['openFile'],
-    filters: [{ name: 'All files', extensions: ['*'] }, { name: 'PS5 save containers', extensions: ['bin', 'img', 'save'] }],
+    filters: [{ name: i18n.t('All files'), extensions: ['*'] }, { name: i18n.t('PS5 save containers'), extensions: ['bin', 'img', 'save'] }],
   });
   return result.canceled ? null : result.filePaths[0];
 });
@@ -595,7 +620,7 @@ function runExportZip(args) {
 ipcMain.handle('dialog:export-zip', async (_event, { output, entryId, suggestedName }) => {
   const result = await dialog.showSaveDialog(window, {
     defaultPath: suggestedName || `save-entry-${entryId}.zip`,
-    filters: [{ name: 'ZIP archive', extensions: ['zip'] }],
+    filters: [{ name: i18n.t('ZIP archive'), extensions: ['zip'] }],
   });
   if (result.canceled || !result.filePath) return null;
   return runExportZip(['export', '--library', output, '--entry-id', String(entryId), '--out', result.filePath]);
@@ -604,7 +629,7 @@ ipcMain.handle('dialog:export-zip', async (_event, { output, entryId, suggestedN
 ipcMain.handle('dialog:external-zip', async (_event, { output }) => {
   const result = await dialog.showOpenDialog(window, {
     properties: ['openFile'],
-    filters: [{ name: 'ZIP archive', extensions: ['zip'] }],
+    filters: [{ name: i18n.t('ZIP archive'), extensions: ['zip'] }],
   });
   if (result.canceled || !result.filePaths[0]) return null;
   const workspace = otherDataPath(output, `external-zip-${Date.now()}`);
@@ -618,6 +643,8 @@ ipcMain.handle('transfer:pair-status', (_event, identity) => {
   if (!identity?.hostId || !identity?.systemVersion) return false;
   return Boolean(existingPairingPrefix(app.getPath('userData'), identity));
 });
+ipcMain.handle('transfer:pair-info', (_event, identity) => pairingInfo(app.getPath('userData'), identity));
+ipcMain.handle('transfer:pair-infos', (_event, identities) => pairingInfos(app.getPath('userData'), identities));
 ipcMain.handle('transfer:select', (_event, entryIds) => {
   if (!active || active.kind !== 'download' || !active.awaitingSelection || !active.process) {
     throw new Error('no download session is waiting for a selection');
@@ -649,7 +676,7 @@ ipcMain.handle('local-pc:inventory', async () => pcInventoryNames(await pcStore.
 ipcMain.handle('local-pc:choose-folder', async () => {
   if (active) throw new Error('stop the active transfer before choosing PC saves');
   const result = await dialog.showOpenDialog(window, {
-    title: 'Choose PC saves folder',
+    title: i18n.t('Choose PC saves folder'),
     properties: ['openDirectory'],
   });
   if (result.canceled) return null;
@@ -704,7 +731,17 @@ ipcMain.handle('transfer:power', () => {
 });
 ipcMain.handle('transfer:cancel', stopActive);
 ipcMain.handle('settings:get', () => loadSettings());
-ipcMain.handle('settings:set', (_event, settings) => saveSettings(settings));
+ipcMain.handle('settings:set', (_event, settings) => {
+  saveSettings(settings);
+  return resolvedInterfaceLanguage(settings.uiLanguage) !== interfaceLanguage;
+});
+ipcMain.handle('settings:reload-language', async (event) => {
+  if (!window || window.isDestroyed() || event.sender !== window.webContents
+      || event.senderFrame !== window.webContents.mainFrame || active || confirmationPending) return false;
+  const language = resolvedInterfaceLanguage(loadSettings().uiLanguage);
+  if (language !== interfaceLanguage) await loadInterface(language, 'settings');
+  return true;
+});
 
 // Function Confirmation
 ipcMain.handle('app:confirm', async (event, message) => {
@@ -718,7 +755,7 @@ ipcMain.handle('app:confirm', async (event, message) => {
   try {
     const result = await dialog.showMessageBox(owner, {
       type: 'question', title: 'GarlicTransfer', message: message.trim(),
-      buttons: ['Cancel', 'Continue'], defaultId: 0, cancelId: 0, noLink: true,
+      buttons: [i18n.t('Cancel'), i18n.t('Continue')], defaultId: 0, cancelId: 0, noLink: true,
     });
     return window === owner && !owner.isDestroyed() && !event.sender.isDestroyed?.() && result.response === 1;
   } finally {

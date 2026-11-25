@@ -1,15 +1,60 @@
-GarlicTransfer - Saved Accounts Test5
-App version: 0.3.3
-Source: supplied GarlicTransfer.zip, with previous Local PC and worker changes.
+GarlicTransfer - Console Finder, Editor Tree and Replace File
+Source: GitHub main f36b80541c13d280ba08c38b2ea85fa1410e7618
+The upstream app version values are preserved.
 
 INSTALL
-Close GarlicTransfer. From the Saved Accounts Test5 update ZIP, copy
-resources/app.asar into your current installation's resources folder,
-replacing app.asar. Run GarlicTransfer.exe normally.
-The existing Python, PS5 helper, settings and saved-account list are reused.
-The full Windows portable build can still be extracted into a new folder;
-Python is bundled, so no separate Python installation is needed.
-This test includes all previous Local PC, worker and cleanup changes.
+Close GarlicTransfer. Merge the update ZIP's resources folder into the resources
+folder of the matching installation, replacing app.asar and poc/dt_resign.py.
+Run GarlicTransfer normally. The PS5 helper binaries are unchanged.
+
+WINDOWS RESIGN DATABASE FIX
+Resign metadata reads close their SQLite connections before returning or
+retrying with a local copy. The resign tests also close their fixture and result
+connections before temporary-folder cleanup. This fixes Windows metadata.db
+file locks without suppressing cleanup errors. The resign files match the
+reported CI commit 23c7d02746d1cf58959fea1411d8d49d215e6674 before this fix.
+
+FIND PLAYSTATIONS
+Locate PS5 lists each discovered console's name, type, IPv4, firmware,
+Console ID and saved pairing status.
+Choose JB for the local helper. This fills both JB helper PS5 IPv4 and Local
+oracle IP; it does not change Use GarlicWorker or the transfer console.
+Choose OFW for the transfer console: Source PS5 for PS5 to PC, Receiving PS5
+for PC to PS5. Scanning alone does not assign a console or start a transfer.
+Settings / Oracle / Maximum JB firmware defaults to 13.60. PS5s at or below
+the limit can be selected as JB; higher or unknown firmware cannot. Set a
+new limit, such as 14.22, and Save Settings when a newer firmware is supported.
+Manual IPv4 discovery uses the same list. Existing selections are kept during
+rescans, and console roles are locked while a transfer or save job is active.
+Pairing shows Paired for this firmware, Pair again for pairing saved on another
+firmware, Not paired when none is saved, or Unknown if it cannot be checked.
+Pairing retains the 32-byte approval value from the console's Data Transfer
+request, keyed by Console ID and firmware. Connections use the current IPv4;
+the saved pairing is selected by identity rather than by its address.
+
+FINDER CLEANUP
+Console details are normalized before selecting roles or comparing identity.
+Console ID capitalization and extra spaces in Type do not change selection.
+If an IP reports another console, the list, sidebar and pairing panel require
+an OFW selection again before starting a transfer. Existing files are retained.
+Settings and the finder share the same maximum-JB-firmware validation.
+Pairing statuses use a single lookup batch for each refresh and update their
+cells directly. The pairing format and handshake are unchanged.
+Paired indicators use the selected skin's success color.
+Changing the discovered firmware clears cached live-transfer approval so the
+next transfer starts a fresh session. A prepared upload uses the new firmware
+and fresh-session flags while retaining its selected user, files and metadata.
+Settings saves preserve newer firmware-limit edits made while saving, and late
+results from older saves cannot replace the latest status or draft.
+
+EDITOR FILE TREE
+Edit your save now groups decrypted files into expandable folders.
+Right-click a file and choose Replace file to select a replacement on your PC.
+The selected workspace file keeps its original name and folder location.
+Cancel leaves it unchanged. Replacing the file currently open in the editor
+asks before discarding unsaved text; edits to another open file are retained.
+Replacement also supports files larger than the text/hex editor limit.
+Use Save & encrypt or Export files to keep the updated save.
 
 LOCAL PC SAVES
 In Local files / My Saves, choose Local PC in the Console selector.
@@ -176,8 +221,10 @@ INCLUDED TREE CLEANUP
 - All previous changes and external skin formats are included.
 
 VALIDATION
-404 Node 22 tests and 105 Python tests passed (509 total).
-All 140 account, close, confirmation and tree checks passed under Node 18.
+121 Python tests passed locally after the resign database fix. Connection
+checks cover normal reads, failed reads and both local-copy fallback outcomes.
+The preceding editor/console-finder build passed all 528 Node tests; its
+Electron files are unchanged by this fix. Windows CI still needs to be rerun.
 The packaged Electron files match the tested source.
 Name entry, automatic saving, Enter, Cancel/Escape, failed-save retry, focus,
 caret retention and current-name tooltips are covered by DOM event tests.
@@ -185,7 +232,9 @@ Windows appearance and native input still need testing on your machine.
 No live PS5 test performed.
 
 CONTENTS
-The Saved Accounts update ZIP contains resources/app.asar; helper files are unchanged.
+The update ZIP contains resources/app.asar and resources/poc/dt_resign.py.
+The app.asar retains the previously tested editor and console-finder changes;
+the Windows resign runtime fix is in poc/dt_resign.py.
 The source ZIP opens directly at the project root, with source and tests.
 skin-template/my-onion/: editable external add-in example.
 poc/local_worker/: matching helper source and GPL license.

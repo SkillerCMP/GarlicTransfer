@@ -3,6 +3,9 @@ const path = require('node:path');
 
 const { app } = require('electron');
 const { defaultDownloads } = require('./paths.cjs');
+const { DEFAULT_JB_FIRMWARE, normalizeFirmwareLimit } = require('./console_info.js');
+const i18n = require('./i18n.js');
+require('./locales/zh-CN.js');
 const configPath = app.isPackaged
   ? path.join(app.getPath('userData'), 'config.ini')
   : path.join(__dirname, '..', 'config.ini');
@@ -10,7 +13,7 @@ const fields = [
   'useRemoteOracle', 'serverUrl', 'workerKey', 'oracleHost', 'oraclePort',
   'interface', 'hardware', 'output', 'metadata', 'assets',
   'userId', 'titleId', 'entryId', 'userName', 'sourcePort', 'dataPort', 'discoveryPort', 'preferIpv6',
-  'uploadDisplayName', 'uiLayout',
+  'uploadDisplayName', 'uiLayout', 'jbFirmwareLimit', 'uiLanguage',
 ];
 const defaults = {
   useRemoteOracle: true,
@@ -33,6 +36,8 @@ const defaults = {
   preferIpv6: false,
   uploadDisplayName: 'GarlicTransfer',
   uiLayout: 'classic',
+  jbFirmwareLimit: DEFAULT_JB_FIRMWARE,
+  uiLanguage: 'auto',
 };
 
 function parse(text) {
@@ -70,15 +75,20 @@ function loadSettings() {
     dataPort: Number(stored.dataPort || defaults.dataPort),
     discoveryPort: Number(stored.discoveryPort || defaults.discoveryPort),
     uiLayout: /^[a-z][a-z0-9-]{0,63}$/.test(stored.uiLayout || '') ? stored.uiLayout : 'classic',
+    uiLanguage: i18n.preference(stored.uiLanguage),
     preferIpv6: stored.preferIpv6 === 'true',
+    jbFirmwareLimit: normalizeFirmwareLimit(stored.jbFirmwareLimit) || defaults.jbFirmwareLimit,
   };
 }
 
 function saveSettings(settings) {
+  const limit = settings.jbFirmwareLimit === undefined ? loadSettings().jbFirmwareLimit : normalizeFirmwareLimit(settings.jbFirmwareLimit);
+  if (!limit) throw new Error(`Enter the JB firmware limit as major.minor, for example ${DEFAULT_JB_FIRMWARE}.`);
   const lines = ['; GarlicTransfer settings'];
   for (const field of fields) {
     const value = field === 'uiLayout' ? (/^[a-z][a-z0-9-]{0,63}$/.test(settings[field] || '') ? settings[field] : 'classic')
-      : field === 'useRemoteOracle' ? Boolean(settings[field]) : settings[field];
+      : field === 'uiLanguage' ? i18n.preference(settings[field])
+      : field === 'useRemoteOracle' ? Boolean(settings[field]) : field === 'jbFirmwareLimit' ? limit : settings[field];
     lines.push(`${field}=${value ?? ''}`);
   }
   fs.writeFileSync(configPath, `${lines.join('\n')}\n`, { mode: 0o600 });

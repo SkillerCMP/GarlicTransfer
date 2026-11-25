@@ -11,6 +11,14 @@ const firstId = `${owner}/PPSA12345`;
 const plain = (value) => JSON.parse(JSON.stringify(value));
 const pause = () => new Promise((resolve) => setTimeout(resolve, 15));
 
+// Function Test Console
+async function discoverConsole(document) {
+  document.getElementById('discoverBtn').click();
+  await until(() => document.querySelector('#consoleLocatorRows input[data-role="ofw"][value="192.168.0.125"]'), 'The discovered fixture PS5 was unavailable as an OFW target');
+  document.querySelector('#consoleLocatorRows input[data-role="ofw"][value="192.168.0.125"]').click();
+  await until(() => document.getElementById('consoleSelect').value === '192.168.0.125', 'The OFW target was not selected');
+}
+
 // Function Test Inventory
 function inventory(root = '/pc/Saves', active = true) {
   return {
@@ -238,13 +246,13 @@ test('Classic Local PC context menus open by keyboard and mouse and export the c
     await until(() => document.querySelector('#myTitleEntries tr'), 'Classic PC titles were not rendered');
     const title = document.querySelector('#myTitleEntries tr');
     title.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ContextMenu', bubbles: true, cancelable: true }));
-    assert.deepEqual([...document.querySelectorAll('.save-context-menu button')].map((button) => button.textContent), ['View saves']);
-    document.querySelector('.save-context-menu button').click();
+    assert.deepEqual([...document.querySelectorAll('.save-context-menu:not(.workspace-file-menu) button')].map((button) => button.textContent), ['View saves']);
+    document.querySelector('.save-context-menu:not(.workspace-file-menu) button').click();
     await until(() => document.querySelector('#mySaveEntries tr'), 'Classic PC files were not rendered');
     const file = document.querySelector('#mySaveEntries tr');
     file.getBoundingClientRect = () => ({ left: 100, bottom: 120 });
     file.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'F10', shiftKey: true, bubbles: true, cancelable: true }));
-    const menu = document.querySelector('.save-context-menu');
+    const menu = document.querySelector('.save-context-menu:not(.workspace-file-menu)');
     assert.ok(menu);
     assert.equal(menu.style.left, '120px');
     assert.equal(menu.style.top, '120px');
@@ -254,10 +262,10 @@ test('Classic Local PC context menus open by keyboard and mouse and export the c
     await idle(context);
     assert.equal(window.cmpFixture.calls.exports[0].localSource, 'pc');
     assert.equal(window.cmpFixture.calls.exports[0].filename, 'sdimg_DATA');
-    assert.equal(document.querySelector('.save-context-menu'), null);
+    assert.equal(document.querySelector('.save-context-menu:not(.workspace-file-menu)'), null);
     const other = [...document.querySelectorAll('#mySaveEntries tr')].find((row) => row.textContent.includes('sdimg_sce_sdmemory'));
     other.dispatchEvent(new window.MouseEvent('contextmenu', { clientX: 200, clientY: 180, bubbles: true, cancelable: true }));
-    [...document.querySelectorAll('.save-context-menu button')].find((button) => button.textContent === 'Export original').click();
+    [...document.querySelectorAll('.save-context-menu:not(.workspace-file-menu) button')].find((button) => button.textContent === 'Export original').click();
     await until(() => window.cmpFixture.calls.exports.length === 2, 'Mouse PC export was not requested');
     await idle(context);
     assert.equal(window.cmpFixture.calls.exports[1].filename, 'sdimg_sce_sdmemory');
@@ -293,7 +301,7 @@ for (const view of ['classic', 'cmp']) {
         : [...document.querySelectorAll('#cmpLibraryTree .cmp-file')].find((row) => row.textContent.includes('sdimg_sce_sdmemory'));
       assert.ok(target);
       target.dispatchEvent(new window.MouseEvent('contextmenu', { clientX: 30, clientY: 30, bubbles: true, cancelable: true }));
-      const selector = view === 'classic' ? '.save-context-menu button' : '.cmp-context button';
+      const selector = view === 'classic' ? '.save-context-menu:not(.workspace-file-menu) button' : '.cmp-context button';
       [...document.querySelectorAll(selector)].find((button) => button.textContent === 'Export original').click();
       await pause();
       assert.equal(prompts, 1);
@@ -344,7 +352,7 @@ test('PC decrypt and save-encrypt keep their source context and preserve the wor
     assert.equal(pc.calls.files[0].localSource, 'pc');
     assert.equal(pc.calls.files[0].entryId, firstId);
     assert.equal(pc.calls.jobs[0].operation, 'decrypt');
-    document.querySelector('#workspaceFiles tr').click();
+    document.querySelector('#workspaceFiles tr[data-file-path]').click();
     await until(() => !document.getElementById('fileEditorPanel').hidden, 'Workspace file did not open');
     const editor = document.getElementById('fileEditor');
     editor.value = 'edited PC save'; editor.dispatchEvent(new window.Event('input'));
@@ -375,7 +383,7 @@ test('switching PC saves requires closing the previous decrypted workspace befor
     await until(() => pc.calls.jobs.some((job) => job.operation === 'decrypt')
       && document.querySelector('.wizard-panel[data-wizard="2"]').classList.contains('active'), 'First PC save did not decrypt');
     await idle(context);
-    document.querySelector('#workspaceFiles tr').click();
+    document.querySelector('#workspaceFiles tr[data-file-path]').click();
     await until(() => !document.getElementById('fileEditorPanel').hidden, 'First PC editor file did not open');
     await idle(context);
     const editor = document.getElementById('fileEditor');
@@ -442,7 +450,7 @@ test('PC upload prepares the complete title folder and retains the chosen destin
   const context = await app({ profiles: false });
   const { dom, document, window, pc, errors } = context;
   try {
-    document.getElementById('discoverBtn').click(); await pause();
+    await discoverConsole(document);
     await openLibrary(context); await selectFirstFile(context);
     document.getElementById('uploadSaveBtn').click();
     await until(() => pc.calls.prepare.length === 1 && [...document.getElementById('uploadSaveSelect').selectedOptions].some((option) => option.value === 'external'), 'PC upload was not prepared as an external save');
@@ -466,7 +474,7 @@ test('PC upload continues with its staged folder after fetching console metadata
   const context = await app({ profiles: false });
   const { dom, document, window, pc, errors } = context;
   try {
-    document.getElementById('discoverBtn').click(); await pause();
+    await discoverConsole(document);
     await openLibrary(context); await selectFirstFile(context);
     window.saveTransfer.inventory = async () => { throw new Error('No cached metadata'); };
     window.saveTransfer.download = async (value) => { window.cmpFixture.calls.downloads.push(value); };
@@ -493,7 +501,7 @@ for (const outcome of ['cancel', 'error', 'rejection']) {
     const context = await app({ profiles: false });
     const { dom, document, window, errors } = context;
     try {
-      document.getElementById('discoverBtn').click(); await pause();
+      await discoverConsole(document);
       await openLibrary(context); await selectFirstFile(context);
       window.saveTransfer.inventory = async () => { throw new Error('No cached metadata'); };
       window.saveTransfer.download = async (value) => {
@@ -547,7 +555,7 @@ test('owned workspace cleanup follows confirmed closure and preserves canceled e
   try {
     await openLibrary(context); await selectFirstFile(context);
     document.getElementById('mySaveDecryptBtn').click(); await idle(context);
-    document.querySelector('#workspaceFiles tr').click();
+    document.querySelector('#workspaceFiles tr[data-file-path]').click();
     await until(() => !document.getElementById('fileEditorPanel').hidden, 'Editor did not open');
     const editor = document.getElementById('fileEditor');
     editor.value = 'unsaved changes'; editor.dispatchEvent(new window.Event('input'));
@@ -594,7 +602,7 @@ test('saved workspace edits still require discard confirmation before owned clea
   try {
     await openLibrary(context); await selectFirstFile(context);
     document.getElementById('mySaveDecryptBtn').click(); await idle(context);
-    document.querySelector('#workspaceFiles tr').click();
+    document.querySelector('#workspaceFiles tr[data-file-path]').click();
     await until(() => !document.getElementById('fileEditorPanel').hidden, 'Editor did not open');
     const editor = document.getElementById('fileEditor');
     editor.value = 'saved but not encrypted'; editor.dispatchEvent(new window.Event('input'));
@@ -692,7 +700,7 @@ test('PC staging stays through metadata success and is released after the upload
   const context = await app({ profiles: false });
   const { document, window, pc, dom } = context;
   try {
-    document.getElementById('discoverBtn').click(); await pause();
+    await discoverConsole(document);
     await openLibrary(context); await selectFirstFile(context);
     window.saveTransfer.inventory = async () => { throw new Error('No prior metadata'); };
     window.saveTransfer.download = async value => { window.cmpFixture.calls.downloads.push(value); };
@@ -720,7 +728,7 @@ for (const outcome of ['cancel', 'error', 'rejection']) {
     const context = await app({ profiles: false });
     const { document, window, pc, dom } = context;
     try {
-      document.getElementById('discoverBtn').click(); await pause();
+      await discoverConsole(document);
       await openLibrary(context); await selectFirstFile(context);
       window.saveTransfer.inventory = async () => { throw new Error('No prior metadata'); };
       window.saveTransfer.download = async value => {
@@ -742,7 +750,7 @@ test('manual external selection releases a PC stage only after a new file is cho
   const context = await app({ profiles: false });
   const { document, window, pc, dom } = context;
   try {
-    document.getElementById('discoverBtn').click(); await pause();
+    await discoverConsole(document);
     await openLibrary(context); await selectFirstFile(context);
     document.getElementById('uploadSaveBtn').click();
     await until(() => !document.getElementById('confirmUploadBtn').hidden, 'PC upload was not prepared');
@@ -859,7 +867,7 @@ test(`a late save cancellation reply cannot clear a later ${finished ? 'complete
   const { document, window, dom } = context;
   let rejectJob, resolveCancel, downloads = 0;
   try {
-    document.getElementById('discoverBtn').click(); await pause();
+    await discoverConsole(document);
     await openLibrary(context); await selectFirstFile(context); await idle(context);
     window.saveEditor.run = () => new Promise((resolve, reject) => { rejectJob = reject; });
     window.saveEditor.cancel = () => new Promise(resolve => { resolveCancel = resolve; });
@@ -972,7 +980,7 @@ test('a failed native confirmation reports its error and preserves edits until a
   try {
     await openLibrary(context); await selectFirstFile(context);
     document.getElementById('mySaveDecryptBtn').click(); await idle(context);
-    document.querySelector('#workspaceFiles tr').click(); await idle(context);
+    document.querySelector('#workspaceFiles tr[data-file-path]').click(); await idle(context);
     const editor = document.getElementById('fileEditor');
     editor.value = 'preserve these edits'; editor.dispatchEvent(new window.Event('input'));
     let prompts = 0;
@@ -1000,7 +1008,7 @@ test('canceling while a native close confirmation waits preserves edits after la
   try {
     await openLibrary(context); await selectFirstFile(context);
     document.getElementById('mySaveDecryptBtn').click(); await idle(context);
-    document.querySelector('#workspaceFiles tr').click(); await idle(context);
+    document.querySelector('#workspaceFiles tr[data-file-path]').click(); await idle(context);
     const editor = document.getElementById('fileEditor');
     editor.value = 'keep these edits'; editor.dispatchEvent(new window.Event('input'));
     let complete;
