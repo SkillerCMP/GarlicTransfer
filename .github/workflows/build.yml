@@ -11,6 +11,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Inject shared worker key
+        env:
+          GARLIC_WORKER_KEY: ${{ secrets.GARLIC_WORKER_KEY }}
+        run: node .github/scripts/inject-worker-key.cjs
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -34,6 +38,10 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Inject shared worker key
+        env:
+          GARLIC_WORKER_KEY: ${{ secrets.GARLIC_WORKER_KEY }}
+        run: node .github/scripts/inject-worker-key.cjs
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -69,6 +77,10 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - name: Inject shared worker key
+        env:
+          GARLIC_WORKER_KEY: ${{ secrets.GARLIC_WORKER_KEY }}
+        run: node .github/scripts/inject-worker-key.cjs
       - uses: actions/setup-node@v4
         with:
           node-version: 22

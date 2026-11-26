@@ -43,6 +43,15 @@ test('missing and legacy configurations default the JB limit to the string 13.60
   assert.equal(settings.useRemoteOracle, false);
 });
 
+test('the revoked shared key is replaced without overriding custom worker keys', t => {
+  const f = fixture(t);
+  const defaultKey = f.api.loadSettings().workerKey;
+  fs.writeFileSync(f.file, 'workerKey=d398596b0dd4ad811173e3324a94d1cc90246a1c7f75b405a5696eed200b353e\n');
+  assert.equal(f.api.loadSettings().workerKey, defaultKey);
+  fs.writeFileSync(f.file, 'workerKey=custom-worker-key\n');
+  assert.equal(f.api.loadSettings().workerKey, 'custom-worker-key');
+});
+
 test('the JB limit is normalized and persists without changing other settings', t => {
   const f = fixture(t);
   const settings = { ...f.api.loadSettings(), oracleHost: '192.0.2.99', serverUrl: 'https://example.invalid',

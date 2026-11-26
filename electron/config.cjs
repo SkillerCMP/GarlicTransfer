@@ -18,7 +18,7 @@ const fields = [
 const defaults = {
   useRemoteOracle: true,
   serverUrl: 'https://garlicsaves.com',
-  workerKey: 'd398596b0dd4ad811173e3324a94d1cc90246a1c7f75b405a5696eed200b353e',
+  workerKey: '',
   oracleHost: '192.168.0.125',
   oraclePort: 9022,
   interface: 'wlp4s0',
@@ -39,6 +39,9 @@ const defaults = {
   jbFirmwareLimit: DEFAULT_JB_FIRMWARE,
   uiLanguage: 'auto',
 };
+const revokedWorkerKeys = new Set([
+  'd398596b0dd4ad811173e3324a94d1cc90246a1c7f75b405a5696eed200b353e',
+]);
 
 function parse(text) {
   const result = {};
@@ -61,13 +64,14 @@ function loadSettings() {
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }
+  const storedWorkerKey = String(stored.workerKey || '').trim();
   return {
     ...defaults,
     ...stored,
     useRemoteOracle: stored.useRemoteOracle
       ? stored.useRemoteOracle === 'true'
       : defaults.useRemoteOracle,
-    workerKey: String(stored.workerKey || '').trim() || defaults.workerKey,
+    workerKey: !storedWorkerKey || revokedWorkerKeys.has(storedWorkerKey) ? defaults.workerKey : storedWorkerKey,
     oraclePort: Number(stored.oraclePort || defaults.oraclePort),
     hardware: Number(stored.hardware || defaults.hardware),
     entryId: Number(stored.entryId || defaults.entryId),
