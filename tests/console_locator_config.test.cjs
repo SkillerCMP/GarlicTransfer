@@ -34,6 +34,7 @@ test('missing and legacy configurations default the JB limit to the string 13.60
   assert.equal(settings.jbFirmwareLimit, '13.60');
   assert.equal(typeof settings.jbFirmwareLimit, 'string');
   assert.equal(settings.useRemoteOracle, true);
+  assert.equal(settings.uiLayout, 'chill');
   assert.equal(settings.output, path.join(f.root, 'downloads'));
   fs.writeFileSync(f.file, 'oracleHost=192.0.2.42\nuiLayout=chill\nuseRemoteOracle=false\n');
   settings = f.api.loadSettings();

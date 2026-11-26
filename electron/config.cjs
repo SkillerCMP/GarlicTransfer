@@ -36,7 +36,7 @@ const defaults = {
   discoveryPort: 1006,
   preferIpv6: false,
   uploadDisplayName: 'GarlicTransfer',
-  uiLayout: 'classic',
+  uiLayout: 'chill',
   jbFirmwareLimit: DEFAULT_JB_FIRMWARE,
   uiLanguage: 'auto',
   installationId: '',
@@ -83,7 +83,7 @@ function loadSettings() {
     sourcePort: Number(stored.sourcePort || defaults.sourcePort),
     dataPort: Number(stored.dataPort || defaults.dataPort),
     discoveryPort: Number(stored.discoveryPort || defaults.discoveryPort),
-    uiLayout: /^[a-z][a-z0-9-]{0,63}$/.test(stored.uiLayout || '') ? stored.uiLayout : 'classic',
+    uiLayout: /^[a-z][a-z0-9-]{0,63}$/.test(stored.uiLayout || '') ? stored.uiLayout : 'chill',
     uiLanguage: i18n.preference(stored.uiLanguage),
     preferIpv6: stored.preferIpv6 === 'true',
     jbFirmwareLimit: normalizeFirmwareLimit(stored.jbFirmwareLimit) || defaults.jbFirmwareLimit,
@@ -95,7 +95,7 @@ function saveSettings(settings) {
   if (!limit) throw new Error(`Enter the JB firmware limit as major.minor, for example ${DEFAULT_JB_FIRMWARE}.`);
   const lines = ['; GarlicTransfer settings'];
   for (const field of fields) {
-    const value = field === 'uiLayout' ? (/^[a-z][a-z0-9-]{0,63}$/.test(settings[field] || '') ? settings[field] : 'classic')
+    const value = field === 'uiLayout' ? (/^[a-z][a-z0-9-]{0,63}$/.test(settings[field] || '') ? settings[field] : 'chill')
       : field === 'uiLanguage' ? i18n.preference(settings[field])
       : field === 'workerKeyRevision' ? defaults.workerKeyRevision
       : field === 'useRemoteOracle' ? Boolean(settings[field]) : field === 'jbFirmwareLimit' ? limit : settings[field];
