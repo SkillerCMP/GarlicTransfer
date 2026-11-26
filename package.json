@@ -103,7 +103,8 @@
         }
       ],
       "category": "public.app-category.utilities",
-      "icon": "build/icons"
+      "icon": "build/icons",
+      "sign": "./build/mac-sign.cjs"
     },
     "linux": {
       "target": [
