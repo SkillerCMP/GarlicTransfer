@@ -43,13 +43,22 @@ test('missing and legacy configurations default the JB limit to the string 13.60
   assert.equal(settings.useRemoteOracle, false);
 });
 
-test('the revoked shared key is replaced without overriding custom worker keys', t => {
+test('all pre-revision keys migrate while newly saved custom keys persist', t => {
   const f = fixture(t);
   const defaultKey = f.api.loadSettings().workerKey;
-  fs.writeFileSync(f.file, 'workerKey=d398596b0dd4ad811173e3324a94d1cc90246a1c7f75b405a5696eed200b353e\n');
-  assert.equal(f.api.loadSettings().workerKey, defaultKey);
-  fs.writeFileSync(f.file, 'workerKey=custom-worker-key\n');
-  assert.equal(f.api.loadSettings().workerKey, 'custom-worker-key');
+  for (const legacyKey of [
+    'd398596b0dd4ad811173e3324a94d1cc90246a1c7f75b405a5696eed200b353e',
+    'another-legacy-worker-key',
+  ]) {
+    fs.writeFileSync(f.file, `workerKey=${legacyKey}\n`);
+    const settings = f.api.loadSettings();
+    assert.equal(settings.workerKey, defaultKey);
+    assert.equal(settings.workerKeyRevision, 1);
+  }
+  f.api.saveSettings({ ...f.api.loadSettings(), workerKey: 'custom-worker-key' });
+  const restored = f.load().loadSettings();
+  assert.equal(restored.workerKey, 'custom-worker-key');
+  assert.equal(restored.workerKeyRevision, 1);
 });
 
 test('the JB limit is normalized and persists without changing other settings', t => {

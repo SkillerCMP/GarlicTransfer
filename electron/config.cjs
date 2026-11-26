@@ -10,7 +10,7 @@ const configPath = app.isPackaged
   ? path.join(app.getPath('userData'), 'config.ini')
   : path.join(__dirname, '..', 'config.ini');
 const fields = [
-  'useRemoteOracle', 'serverUrl', 'workerKey', 'oracleHost', 'oraclePort',
+  'useRemoteOracle', 'serverUrl', 'workerKey', 'workerKeyRevision', 'oracleHost', 'oraclePort',
   'interface', 'hardware', 'output', 'metadata', 'assets',
   'userId', 'titleId', 'entryId', 'userName', 'sourcePort', 'dataPort', 'discoveryPort', 'preferIpv6',
   'uploadDisplayName', 'uiLayout', 'jbFirmwareLimit', 'uiLanguage',
@@ -19,6 +19,7 @@ const defaults = {
   useRemoteOracle: true,
   serverUrl: 'https://garlicsaves.com',
   workerKey: '',
+  workerKeyRevision: 1,
   oracleHost: '192.168.0.125',
   oraclePort: 9022,
   interface: 'wlp4s0',
@@ -39,9 +40,6 @@ const defaults = {
   jbFirmwareLimit: DEFAULT_JB_FIRMWARE,
   uiLanguage: 'auto',
 };
-const revokedWorkerKeys = new Set([
-  'd398596b0dd4ad811173e3324a94d1cc90246a1c7f75b405a5696eed200b353e',
-]);
 
 function parse(text) {
   const result = {};
@@ -65,13 +63,15 @@ function loadSettings() {
     if (error.code !== 'ENOENT') throw error;
   }
   const storedWorkerKey = String(stored.workerKey || '').trim();
+  const storedWorkerKeyRevision = Number(stored.workerKeyRevision || 0);
   return {
     ...defaults,
     ...stored,
     useRemoteOracle: stored.useRemoteOracle
       ? stored.useRemoteOracle === 'true'
       : defaults.useRemoteOracle,
-    workerKey: !storedWorkerKey || revokedWorkerKeys.has(storedWorkerKey) ? defaults.workerKey : storedWorkerKey,
+    workerKeyRevision: defaults.workerKeyRevision,
+    workerKey: storedWorkerKeyRevision === defaults.workerKeyRevision && storedWorkerKey ? storedWorkerKey : defaults.workerKey,
     oraclePort: Number(stored.oraclePort || defaults.oraclePort),
     hardware: Number(stored.hardware || defaults.hardware),
     entryId: Number(stored.entryId || defaults.entryId),
@@ -92,6 +92,7 @@ function saveSettings(settings) {
   for (const field of fields) {
     const value = field === 'uiLayout' ? (/^[a-z][a-z0-9-]{0,63}$/.test(settings[field] || '') ? settings[field] : 'classic')
       : field === 'uiLanguage' ? i18n.preference(settings[field])
+      : field === 'workerKeyRevision' ? defaults.workerKeyRevision
       : field === 'useRemoteOracle' ? Boolean(settings[field]) : field === 'jbFirmwareLimit' ? limit : settings[field];
     lines.push(`${field}=${value ?? ''}`);
   }
