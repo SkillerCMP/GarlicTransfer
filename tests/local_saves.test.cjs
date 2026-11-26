@@ -30,7 +30,8 @@ test('local save IPC uses the backend inventory, export, and import operations',
   assert.match(preload, /localSaves:/);
   assert.match(preload, /exportLocalSave:/);
   assert.match(preload, /importLocalSave:/);
-  assert.match(main, /filters: \[\{ name: i18n\.t\('All files'\), extensions: \['\*'\] \}, \{ name: i18n\.t\('PS5 save containers'\)/);
+  assert.match(main, /filters: \[\{ name: i18n\.t\('All files'\), extensions: \['\*'\] \}\]/);
+  assert.doesNotMatch(main, /PS5 save containers/);
 });
 
 test('external save upload is not exposed', () => {

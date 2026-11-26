@@ -475,10 +475,7 @@ function registerSaveEditor({ ipcMain, app, dialog, shell, python, resourceRoot,
   ipcMain.handle('save-editor:choose-input', async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openFile', 'multiSelections'],
-      filters: [
-        { name: 'All files', extensions: ['*'] },
-        { name: 'Save containers and archives', extensions: ['zip', 'bin', 'img', 'save', 'dat'] },
-      ],
+      filters: [{ name: 'All files', extensions: ['*'] }],
     });
     return result.canceled ? [] : result.filePaths;
   });

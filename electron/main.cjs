@@ -596,7 +596,7 @@ ipcMain.handle('dialog:external-folder', async () => {
 ipcMain.handle('dialog:external-save', async () => {
   const result = await dialog.showOpenDialog(window, {
     properties: ['openFile'],
-    filters: [{ name: i18n.t('All files'), extensions: ['*'] }, { name: i18n.t('PS5 save containers'), extensions: ['bin', 'img', 'save'] }],
+    filters: [{ name: i18n.t('All files'), extensions: ['*'] }],
   });
   return result.canceled ? null : result.filePaths[0];
 });
