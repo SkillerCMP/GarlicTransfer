@@ -50,15 +50,22 @@ test('all pre-revision keys migrate while newly saved custom keys persist', t =>
     'd398596b0dd4ad811173e3324a94d1cc90246a1c7f75b405a5696eed200b353e',
     'another-legacy-worker-key',
   ]) {
-    fs.writeFileSync(f.file, `workerKey=${legacyKey}\n`);
+    fs.writeFileSync(f.file, `workerKey=${legacyKey}\ninstallationId=legacy-installation\nauthorizedUser=legacy-user\n`);
     const settings = f.api.loadSettings();
     assert.equal(settings.workerKey, defaultKey);
-    assert.equal(settings.workerKeyRevision, 1);
+    assert.equal(settings.workerKeyRevision, 2);
+    assert.equal(settings.installationId, '');
+    assert.equal(settings.authorizedUser, '');
   }
-  f.api.saveSettings({ ...f.api.loadSettings(), workerKey: 'custom-worker-key' });
+  f.api.saveSettings({
+    ...f.api.loadSettings(), workerKey: 'custom-worker-key',
+    installationId: 'new-installation', authorizedUser: 'new-user',
+  });
   const restored = f.load().loadSettings();
   assert.equal(restored.workerKey, 'custom-worker-key');
-  assert.equal(restored.workerKeyRevision, 1);
+  assert.equal(restored.workerKeyRevision, 2);
+  assert.equal(restored.installationId, 'new-installation');
+  assert.equal(restored.authorizedUser, 'new-user');
 });
 
 test('the JB limit is normalized and persists without changing other settings', t => {

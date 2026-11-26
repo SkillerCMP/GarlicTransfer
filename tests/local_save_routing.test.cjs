@@ -175,7 +175,7 @@ test('a missing local helper fails after input packing and before submitting sav
 test('remote routing still requires its server key by default and when explicitly enabled', async (t) => {
   const f = await fixture(t);
   for (const flag of [undefined, true]) {
-    await assert.rejects(f.api.runSaveJob({ ...f.common, useRemoteOracle: flag, operation: 'decrypt', inputs: [f.source] }), /enter a server key/);
+    await assert.rejects(f.api.runSaveJob({ ...f.common, useRemoteOracle: flag, operation: 'decrypt', inputs: [f.source] }), /Authorize the app first!/);
   }
   assert.deepEqual(f.calls.helper, []);
   assert.deepEqual(f.calls.worker, []);
@@ -207,12 +207,15 @@ test('explicit remote mode submits, polls and downloads through its configured H
   const f = await fixture(t, { allowRemote: true });
   const requests = [];
   const server = http.createServer((request, response) => {
-    requests.push({ method: request.method, path: request.url, key: request.headers['x-worker-key'] });
+    requests.push({
+      method: request.method, path: request.url,
+      key: request.headers['x-worker-key'], jobToken: request.headers['x-job-token'],
+    });
     request.resume();
     request.on('end', () => {
       if (request.method === 'POST') {
         response.setHeader('Content-Type', 'application/json');
-        response.end(JSON.stringify({ job_id: 'remote-routing' }));
+        response.end(JSON.stringify({ job_id: 'remote-routing', job_token: 'read-secret' }));
       } else if (request.url.endsWith('/result')) {
         response.end('remote encrypted result');
       } else {
@@ -237,6 +240,7 @@ test('explicit remote mode submits, polls and downloads through its configured H
     ['GET', '/api/v1/jobs/remote-routing/result'],
   ]);
   assert.ok(requests.every((request) => request.key === 'test-key'));
+  assert.deepEqual(requests.slice(1).map(request => request.jobToken), ['read-secret', 'read-secret']);
   assert.deepEqual(f.calls.helper, []);
   assert.deepEqual(f.calls.worker, []);
   assert.equal(f.calls.fetch, 2);

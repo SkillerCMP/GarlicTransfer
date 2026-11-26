@@ -8,6 +8,7 @@ const net = require('node:net');
 const path = require('node:path');
 const { startRemoteOracle, stopRemoteOracle } = require('./remote_oracle.cjs');
 const { loadSettings, saveSettings } = require('./config.cjs');
+const { authorizeDevice } = require('./device_auth.cjs');
 const i18n = require('./i18n.js');
 const { titleName } = require('./titles.cjs');
 const { pairingPrefixPath, existingPairingPrefix, pairingInfo, pairingInfos } = require('./pairing_store.cjs');
@@ -23,6 +24,7 @@ let interfaceLanguage = 'en';
 let active = null;
 let oracleRelay = null;
 let confirmationPending = false;
+let deviceAuthorizationPending = false;
 const localPcRoot = path.join(app.getPath('userData'), 'local-pc');
 const accountStore = new AccountStore(path.join(app.getPath('userData'), 'account-list.json'));
 const pcStore = new LocalPcStore({
@@ -54,7 +56,10 @@ function stopOracle() {
 
 async function ensureOracle(options, session) {
   if (options.useRemoteOracle) {
-    if (!options.workerKey) throw new Error('no server key set — check Oracle settings or disable the remote oracle');
+    if (!options.workerKey) {
+      if (window && !window.isDestroyed()) window.webContents.send('device:event', { type: 'required' });
+      throw new Error('Authorize the app first!');
+    }
     const relay = await startRemoteOracle({
       serverUrl: options.serverUrl,
       workerKey: options.workerKey,
@@ -730,6 +735,26 @@ ipcMain.handle('transfer:power', () => {
   }
 });
 ipcMain.handle('transfer:cancel', stopActive);
+ipcMain.handle('device:authorize', async (_event, options) => {
+  if (deviceAuthorizationPending) throw new Error('Installation authorization is already in progress');
+  const settings = loadSettings();
+  const serverUrl = String(options?.serverUrl || settings.serverUrl);
+  deviceAuthorizationPending = true;
+  try {
+    const result = await authorizeDevice({
+      serverUrl,
+      name: settings.uploadDisplayName || 'GarlicTransfer installation',
+      onPending: async detail => {
+        if (window && !window.isDestroyed()) window.webContents.send('device:event', { type: 'pending', ...detail });
+        await shell.openExternal(detail.verificationUri);
+      },
+    });
+    saveSettings({ ...loadSettings(), serverUrl, ...result });
+    return { installationId: result.installationId, authorizedUser: result.authorizedUser };
+  } finally {
+    deviceAuthorizationPending = false;
+  }
+});
 ipcMain.handle('settings:get', () => loadSettings());
 ipcMain.handle('settings:set', (_event, settings) => {
   saveSettings(settings);

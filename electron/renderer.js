@@ -7,12 +7,12 @@ const byId = (id) => document.getElementById(id);
 const controls = {};
 for (const id of [
   'uiLayout', 'uiLanguage', 'oracleHost', 'interface', 'hardware', 'output', 'metadata', 'assets',
-  'useRemoteOracle', 'serverUrl', 'workerKey', 'settingsSave', 'settingsStatus', 'appVersion',
+  'useRemoteOracle', 'serverUrl', 'workerKey', 'workerKeyRevision', 'installationId', 'authorizedUser', 'authorizeDeviceBtn', 'deviceAuthStatus', 'deviceAuthFallback', 'deviceAuthUrl', 'deviceAuthCopyBtn', 'deviceAuthCode', 'settingsSave', 'settingsStatus', 'appVersion',
   'firewallSettings', 'firewallHelperBtn', 'firewallStatus',
   'addExternalFolderBtn', 'externalUploadControls', 'addExternalSaveBtn', 'addExternalZipBtn', 'exportZipBtn', 'externalTitleId', 'userSelect', 'userSelectLabel', 'uploadSaveSelect', 'uploadSaveSelectLabel', 'confirmUploadBtn', 'sourcePort', 'dataPort', 'discoveryPort', 'uploadDisplayName',
   'downloadBtn', 'downloadSelectedBtn', 'uploadBtn', 'finishBtn', 'cancelBtn', 'powerBtn', 'status', 'entries', 'appEntries', 'profileEntries', 'mediaEntries', 'otherEntries', 'log', 'saveSearch',
   'consoleSelect', 'consoleLocatorRows', 'jbFirmwareLimit', 'transferConsoleHost', 'transferConsoleLabel', 'discoverBtn', 'manualHost', 'manualConnectBtn', 'pairBtn', 'pairingState', 'preferIpv6', 'selectAllEntries', 'entryCount', 'powerModal',
-  'pairingModal', 'pairingCancelBtn', 'uploadModal', 'uploadModalCloseBtn',
+  'pairingModal', 'pairingCancelBtn', 'uploadModal', 'uploadModalCloseBtn', 'authorizationModal', 'authorizationNowBtn', 'authorizationCancelBtn', 'authorizationDescription', 'authorizationFallback', 'authorizationUrl', 'authorizationCopyBtn', 'authorizationCode',
   'browseLocalBtn', 'localBrowser', 'localEntries', 'importModal', 'importWarning', 'confirmImportBtn', 'cancelImportBtn',
 ]) controls[id] = byId(id);
 let activeTransfer = null;
@@ -138,6 +138,9 @@ function options() {
     useRemoteOracle: controls.useRemoteOracle.checked,
     serverUrl: controls.serverUrl.value.trim(),
     workerKey: controls.workerKey.value.trim(),
+    workerKeyRevision: 2,
+    installationId: controls.installationId.value,
+    authorizedUser: controls.authorizedUser.value,
     clientHost,
     hostId: targetIdentityChanged ? '' : controls.consoleSelect.selectedOptions[0]?.dataset.hostId || '',
     profileId: targetIdentityChanged ? '' : controls.consoleSelect.selectedOptions[0]?.dataset.profileId || controls.consoleSelect.selectedOptions[0]?.dataset.hostId || '',
@@ -1090,9 +1093,92 @@ controls.manualConnectBtn.addEventListener('click', async () => {
   }
 });
 
+let deviceAuthorizationPending = false;
+const authorizationDescriptionDefault = 'Remote oracle and online save tools require an authorized GarlicTransfer installation. Authorize this app with your GarlicSaves account to continue.';
+function hideDeviceAuthFallback() {
+  controls.deviceAuthFallback.hidden = true;
+}
+function showAuthorizationRequired() {
+  if (!deviceAuthorizationPending) {
+    controls.authorizationDescription.textContent = authorizationDescriptionDefault;
+    controls.authorizationFallback.hidden = true;
+    controls.authorizationNowBtn.disabled = false;
+    controls.authorizationNowBtn.textContent = 'Authorize now';
+  }
+  if (!controls.authorizationModal.open) controls.authorizationModal.showModal();
+}
+controls.authorizationCancelBtn.addEventListener('click', () => controls.authorizationModal.close());
+controls.authorizationNowBtn.addEventListener('click', () => {
+  controls.authorizationDescription.textContent = 'Authorize in your browser. Keep this window open while you approve the request.';
+  controls.authorizationNowBtn.disabled = true;
+  controls.authorizationNowBtn.textContent = 'Waiting for approval…';
+  showPage('settings');
+  controls.authorizeDeviceBtn.click();
+});
+async function copyAuthorizationLink(input, button) {
+  let copied = false;
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error('Clipboard API unavailable');
+    await navigator.clipboard.writeText(input.value);
+    copied = true;
+  } catch {
+    input.focus();
+    input.select();
+    copied = document.execCommand('copy');
+  }
+  button.textContent = copied ? 'Copied!' : 'Select link';
+  if (!copied) { input.focus(); input.select(); }
+  setTimeout(() => { button.textContent = 'Copy link'; }, 1500);
+}
+controls.deviceAuthCopyBtn.addEventListener('click', () => copyAuthorizationLink(controls.deviceAuthUrl, controls.deviceAuthCopyBtn));
+controls.authorizationCopyBtn.addEventListener('click', () => copyAuthorizationLink(controls.authorizationUrl, controls.authorizationCopyBtn));
+window.saveTransfer.onDeviceEvent?.(detail => {
+  if (detail?.type === 'required') {
+    showAuthorizationRequired();
+    return;
+  }
+  if (detail?.type === 'pending') {
+    controls.deviceAuthUrl.value = detail.verificationUri;
+    controls.deviceAuthCode.textContent = detail.userCode;
+    controls.deviceAuthFallback.hidden = false;
+    controls.deviceAuthStatus.textContent = `Approve the request in your browser. The code expires in ${Math.ceil((detail.expiresIn || 600) / 60)} minutes.`;
+    controls.authorizationUrl.value = detail.verificationUri;
+    controls.authorizationCode.textContent = detail.userCode;
+    controls.authorizationFallback.hidden = false;
+    controls.authorizationDescription.textContent = `Authorize in your browser. If your browser doesn't open, copy the link below. The code expires in ${Math.ceil((detail.expiresIn || 600) / 60)} minutes.`;
+  }
+});
+controls.authorizeDeviceBtn.addEventListener('click', async () => {
+  if (accountClosing || deviceAuthorizationPending) return;
+  deviceAuthorizationPending = true;
+  controls.authorizeDeviceBtn.disabled = true;
+  controls.settingsSave.disabled = true;
+  hideDeviceAuthFallback();
+  controls.authorizationFallback.hidden = true;
+  controls.deviceAuthStatus.textContent = 'Starting installation authorization…';
+  try {
+    const result = await window.saveTransfer.authorizeDevice({ serverUrl: controls.serverUrl.value.trim() });
+    await loadSettings();
+    controls.deviceAuthStatus.textContent = `Authorized${result.authorizedUser ? ` as ${result.authorizedUser}` : ''}. This installation has its own credential.`;
+    controls.authorizationModal.close();
+  } catch (error) {
+    controls.deviceAuthStatus.textContent = `Authorization failed: ${error.message}`;
+    if (controls.authorizationModal.open) controls.authorizationDescription.textContent = `Authorization failed: ${error.message}`;
+  } finally {
+    deviceAuthorizationPending = false;
+    controls.authorizeDeviceBtn.disabled = false;
+    controls.settingsSave.disabled = accountClosing;
+    hideDeviceAuthFallback();
+    if (controls.authorizationModal.open) {
+      controls.authorizationNowBtn.disabled = false;
+      controls.authorizationNowBtn.textContent = 'Try again';
+    }
+  }
+});
+
 function canReloadLanguage() {
   return !accountClosing && !activeTransfer && !browseSessionActive && !finishConfirmationPending
-    && !discoveryPending && !manualConnectionPending && !firewallPending && !decryptedWorkspace
+    && !deviceAuthorizationPending && !discoveryPending && !manualConnectionPending && !firewallPending && !decryptedWorkspace
     && !document.querySelector('dialog[open]');
 }
 
@@ -1169,6 +1255,9 @@ async function loadSettings() {
   applyConsoleProfile();
   await skinAppearance.reload(settings.uiLayout);
   updateOracleMode();
+  if (settings.installationId) {
+    controls.deviceAuthStatus.textContent = `Authorized${settings.authorizedUser ? ` as ${settings.authorizedUser}` : ''}. This installation has its own credential.`;
+  }
   renderConsoleLocator(); updateConsoleDirection();
   window.saveTransfer.version().then((version) => {
     controls.appVersion.textContent = `v${version}`;

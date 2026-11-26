@@ -235,6 +235,10 @@ async function apiResponse(url, options) {
   return response;
 }
 
+function apiHeaders(workerKey, jobToken = '') {
+  return { 'X-Worker-Key': workerKey, 'X-Job-Token': jobToken };
+}
+
 async function postMultipart({ serverUrl, workerKey, operation, accountId, inputs, platform, signal }) {
   checkCanceled(signal);
   const crypto = require('node:crypto');
@@ -308,10 +312,10 @@ async function createRemoteJob(options) {
   return postMultipart(options);
 }
 
-async function downloadRemoteResult({ serverUrl, workerKey, jobId, output, signal }) {
+async function downloadRemoteResult({ serverUrl, workerKey, jobId, jobToken = '', output, signal }) {
   checkCanceled(signal);
   const response = await apiResponse(`${apiOrigin(serverUrl)}/api/v1/jobs/${jobId}/result`, {
-    headers: { 'X-Worker-Key': workerKey }, signal,
+    headers: apiHeaders(workerKey, jobToken), signal,
   });
   if (!response.body) throw new Error('GarlicSaves returned an empty result');
   await fsPromises.mkdir(path.dirname(output), { recursive: true });
@@ -341,7 +345,8 @@ async function runSaveJob(options) {
     if (platform !== 'ps5') throw new Error('the local save helper supports PS5 saves');
     if (typeof ensureLocalWorker !== 'function') throw new Error('the local save helper is not available; restart GarlicTransfer');
   } else if (!String(workerKey || '').trim()) {
-    throw new Error('enter a server key in Settings before using Save Editor');
+    if (sender && !sender.isDestroyed()) sender.send('device:event', { type: 'required' });
+    throw new Error('Authorize the app first!');
   }
   if ((operation === 'encrypt' || operation === 'resign') && !/^[0-9a-fA-F]{16}$/.test(accountId)) {
     throw new Error('enter a 16-digit hexadecimal account ID');
@@ -399,6 +404,7 @@ async function runSaveJob(options) {
           serverUrl, workerKey, operation, accountId: workerAccountId, inputs: uploadInputs, platform, signal: remoteSignal,
         });
         jobId = created.job_id;
+        const jobToken = created.job_token || '';
         if (!jobId) throw new Error('GarlicSaves did not return a job ID');
         emit('job', { jobId, operation });
         let logCount = 0;
@@ -406,7 +412,7 @@ async function runSaveJob(options) {
         while (true) {
           checkCanceled(remoteSignal);
           const response = await apiResponse(`${apiOrigin(serverUrl)}/api/v1/jobs/${jobId}`, {
-            headers: { 'X-Worker-Key': workerKey }, signal: remoteSignal,
+            headers: apiHeaders(workerKey, jobToken), signal: remoteSignal,
           });
           const job = await response.json();
           for (const entry of (job.logs || []).slice(logCount)) {
@@ -423,7 +429,7 @@ async function runSaveJob(options) {
           await wait(pollIntervalMs, undefined, { signal: remoteSignal });
         }
         emit('status', { message: 'Downloading the result…' });
-        await downloadRemoteResult({ serverUrl, workerKey, jobId, output: resultPath, signal: remoteSignal });
+        await downloadRemoteResult({ serverUrl, workerKey, jobId, jobToken, output: resultPath, signal: remoteSignal });
       });
     }
     if (operation === 'decrypt') {

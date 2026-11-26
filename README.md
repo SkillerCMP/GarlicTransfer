@@ -71,18 +71,17 @@ system's preferred languages and falls back to English. See
 
 Oracle choices:
 
-- **Volunteer workers:** enter the HTOS server URL and a worker/API key from the server's Contribute page. The server must support `ppr_derive`; the corresponding worker implementation is in garlic-worker 1.1.7 or newer.
+- **Volunteer workers:** click **Authorize this installation** in Settings and approve the request with your GarlicSaves account. Each installation receives a separate revocable credential and can access only its own jobs. The server must support `ppr_derive`; the corresponding worker implementation is in garlic-worker 1.1.7 or newer.
 - **Local oracle:** disable volunteer workers and enter the jailbroken PS5's IPv4 address. GarlicTransfer deploys `poc/local_worker/garlic-local-worker.elf` through the console's payload listener on port 9021 when needed. The combined helper provides transfer keys on port 9022 and local decrypt, encrypt and resign jobs on port 9023. See [LOCAL-WORKER.md](LOCAL-WORKER.md) for setup.
 
-### Get a volunteer worker token
+### Authorize an installation
 
 1. Create an account at [garlicsaves.com/register](https://garlicsaves.com/register), or sign in at [garlicsaves.com/login](https://garlicsaves.com/login).
-2. Open [garlicsaves.com/contribute](https://garlicsaves.com/contribute).
-3. Under **Generate Key**, enter a recognizable name such as `GarlicTransfer`, then click **Generate**.
-4. Copy the new worker key immediately. HTOS shows it only once.
-5. In GarlicTransfer, open **Settings**, keep **Use volunteer workers** enabled, paste the key into **Worker/API key**, and click **Save settings**.
+2. In GarlicTransfer, open **Settings**, keep **Use volunteer workers** enabled, and click **Authorize this installation**.
+3. In the browser, check that the code matches the app and approve the request. If the browser asks you to sign in, sign in and reopen the authorization link.
+4. Return to GarlicTransfer after the browser confirms approval. The credential is stored locally in `config.ini`, which is excluded from git.
 
-This is an HTOS worker key, not a Forgejo token or a PSN credential. You do not need to run a worker console yourself to submit jobs to the volunteer oracle. The key is stored locally in `config.ini`, which is excluded from git.
+Advanced users can still paste an HTOS worker/API key generated from the server's Contribute page into **Server key**. This is an HTOS worker key, not a Forgejo token or a PSN credential. You do not need to run a worker console yourself to submit jobs to the volunteer oracle.
 
 The profile root defaults to `dt_downloads`. Downloads are separated as:
 

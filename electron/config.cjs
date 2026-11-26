@@ -13,13 +13,13 @@ const fields = [
   'useRemoteOracle', 'serverUrl', 'workerKey', 'workerKeyRevision', 'oracleHost', 'oraclePort',
   'interface', 'hardware', 'output', 'metadata', 'assets',
   'userId', 'titleId', 'entryId', 'userName', 'sourcePort', 'dataPort', 'discoveryPort', 'preferIpv6',
-  'uploadDisplayName', 'uiLayout', 'jbFirmwareLimit', 'uiLanguage',
+  'uploadDisplayName', 'uiLayout', 'jbFirmwareLimit', 'uiLanguage', 'installationId', 'authorizedUser',
 ];
 const defaults = {
   useRemoteOracle: true,
   serverUrl: 'https://garlicsaves.com',
   workerKey: '',
-  workerKeyRevision: 1,
+  workerKeyRevision: 2,
   oracleHost: '192.168.0.125',
   oraclePort: 9022,
   interface: 'wlp4s0',
@@ -39,6 +39,8 @@ const defaults = {
   uiLayout: 'classic',
   jbFirmwareLimit: DEFAULT_JB_FIRMWARE,
   uiLanguage: 'auto',
+  installationId: '',
+  authorizedUser: '',
 };
 
 function parse(text) {
@@ -64,6 +66,7 @@ function loadSettings() {
   }
   const storedWorkerKey = String(stored.workerKey || '').trim();
   const storedWorkerKeyRevision = Number(stored.workerKeyRevision || 0);
+  const hasCurrentWorkerKey = storedWorkerKeyRevision === defaults.workerKeyRevision && storedWorkerKey;
   return {
     ...defaults,
     ...stored,
@@ -71,7 +74,9 @@ function loadSettings() {
       ? stored.useRemoteOracle === 'true'
       : defaults.useRemoteOracle,
     workerKeyRevision: defaults.workerKeyRevision,
-    workerKey: storedWorkerKeyRevision === defaults.workerKeyRevision && storedWorkerKey ? storedWorkerKey : defaults.workerKey,
+    workerKey: hasCurrentWorkerKey ? storedWorkerKey : defaults.workerKey,
+    installationId: hasCurrentWorkerKey ? stored.installationId || '' : '',
+    authorizedUser: hasCurrentWorkerKey ? stored.authorizedUser || '' : '',
     oraclePort: Number(stored.oraclePort || defaults.oraclePort),
     hardware: Number(stored.hardware || defaults.hardware),
     entryId: Number(stored.entryId || defaults.entryId),

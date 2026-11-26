@@ -419,12 +419,24 @@
           </label>
           <p id="jbFirmwareHint" class="card-hint">PS5 firmware at or below this version can be selected as JB. Update this limit when a newer firmware is supported.</p>
           <label class="checkbox"><input id="useRemoteOracle" type="checkbox" checked> Use remote oracle (no jailbroken console needed)</label>
-          <p class="card-hint">Volunteer-run workers derive your save encryption keys. Default server key included &mdash; change only if you have your own.</p>
+          <p class="card-hint">Volunteer-run workers derive your save encryption keys. Authorize each installation with your own GarlicSaves account.</p>
           <p class="card-hint">This choice also applies to Encrypt, Decrypt and Resign. Turn it off to use your jailbroken PS5 at the local oracle IP.</p>
           <div class="settings-grid">
             <label>Server URL<input id="serverUrl" value="https://garlicsaves.com" spellcheck="false"></label>
-            <label>Server key<input id="workerKey" type="password" placeholder="Pre-filled — change only if you have your own" spellcheck="false"></label>
+            <label>Server key<input id="workerKey" type="password" placeholder="Authorize this installation or enter your own key" spellcheck="false"></label>
             <label>Local oracle IP (when remote is off)<input id="oracleHost" value="192.168.0.125" spellcheck="false"></label>
+          </div>
+          <input id="installationId" type="hidden">
+          <input id="authorizedUser" type="hidden">
+          <button id="authorizeDeviceBtn" type="button">Authorize this installation</button>
+          <p id="deviceAuthStatus" class="card-hint" role="status" aria-live="polite">Authorization opens GarlicSaves in your browser.</p>
+          <div id="deviceAuthFallback" class="device-auth-fallback" hidden>
+            <p>If your browser doesn't open, copy this into the browser to authorize:</p>
+            <div class="device-auth-copy-row">
+              <input id="deviceAuthUrl" type="text" readonly spellcheck="false" aria-label="GarlicSaves authorization URL">
+              <button id="deviceAuthCopyBtn" type="button">Copy link</button>
+            </div>
+            <p class="device-auth-code">Authorization code: <code id="deviceAuthCode"></code></p>
           </div>
         </div>
 
@@ -523,6 +535,22 @@
       <li>Follow the on-screen prompts to import the data.</li>
     </ol>
     <button id="uploadModalCloseBtn" type="button">Close instructions</button>
+  </dialog>
+  <dialog id="authorizationModal" class="modal" aria-labelledby="authorizationHeading" aria-describedby="authorizationDescription">
+    <h2 id="authorizationHeading">Authorize the app first!</h2>
+    <p id="authorizationDescription">Remote oracle and online save tools require an authorized GarlicTransfer installation. Authorize this app with your GarlicSaves account to continue.</p>
+    <div id="authorizationFallback" class="device-auth-fallback" hidden>
+      <p>Authorize in your browser. If your browser doesn't open, copy this into the browser to authorize:</p>
+      <div class="device-auth-copy-row">
+        <input id="authorizationUrl" type="text" readonly spellcheck="false" aria-label="GarlicSaves authorization URL">
+        <button id="authorizationCopyBtn" type="button">Copy link</button>
+      </div>
+      <p class="device-auth-code">Authorization code: <code id="authorizationCode"></code></p>
+    </div>
+    <div class="modal-actions">
+      <button id="authorizationNowBtn" class="btn-primary" type="button">Authorize now</button>
+      <button id="authorizationCancelBtn" type="button">Cancel</button>
+    </div>
   </dialog>
   <dialog id="importModal" class="modal">
     <h2>Replace local save</h2>

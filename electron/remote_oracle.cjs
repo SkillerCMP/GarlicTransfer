@@ -26,14 +26,14 @@ async function submitDerivation(serverUrl, workerKey, clientValue, serverValue) 
   const data = await responseJson(response);
   if (!response.ok) throw new Error(data.error || `HTOS rejected the derivation (${response.status})`);
   if (!data.job_id) throw new Error('HTOS did not return a job ID');
-  return data.job_id;
+  return { jobId: data.job_id, jobToken: data.job_token || '' };
 }
 
-async function derivationResult(serverUrl, workerKey, jobId, onLog) {
+async function derivationResult(serverUrl, workerKey, jobId, jobToken, onLog) {
   const deadline = Date.now() + 120000;
   while (Date.now() < deadline) {
     const response = await fetch(`${apiBase(serverUrl)}/api/v1/jobs/${jobId}`, {
-      headers: { 'X-Worker-Key': workerKey },
+      headers: { 'X-Worker-Key': workerKey, 'X-Job-Token': jobToken },
     });
     const data = await responseJson(response);
     if (!response.ok) throw new Error(data.error || 'Could not read the derivation job');
@@ -45,7 +45,7 @@ async function derivationResult(serverUrl, workerKey, jobId, onLog) {
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
   const response = await fetch(`${apiBase(serverUrl)}/api/v1/jobs/${jobId}/result`, {
-    headers: { 'X-Worker-Key': workerKey },
+    headers: { 'X-Worker-Key': workerKey, 'X-Job-Token': jobToken },
   });
   const data = await responseJson(response);
   if (!response.ok) throw new Error(data.error || 'Could not download the derivation result');
@@ -78,9 +78,9 @@ async function startRemoteOracle({ serverUrl, workerKey, onLog }) {
       const clientValue = input.subarray(0, 16).toString('hex');
       const serverValue = input.subarray(16, 32).toString('hex');
       (async () => {
-        const jobId = await submitDerivation(serverUrl, workerKey, clientValue, serverValue);
+        const { jobId, jobToken } = await submitDerivation(serverUrl, workerKey, clientValue, serverValue);
         onLog(`[oracle] submitted PPR job ${jobId}`);
-        const result = await derivationResult(serverUrl, workerKey, jobId, onLog);
+        const result = await derivationResult(serverUrl, workerKey, jobId, jobToken, onLog);
         socket.end(result);
       })().catch((error) => {
         onLog(`[oracle] ${error.message}`);
