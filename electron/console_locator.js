@@ -7,6 +7,8 @@
 
   // Function Console Locator
   function create(document, tbody, { onSelect = () => {}, isBusy = () => false } = {}) {
+    const uiText = document.defaultView.GarlicI18n?.t || ((source, ...values) =>
+      typeof source === 'string' ? source : String.raw({ raw: source }, ...values));
     const rows = new Map();
     let consoles = new Map(), busy = false, firmwareLimit = DEFAULT_JB_FIRMWARE;
     let selected = { jb: '', ofw: '' };
@@ -22,7 +24,7 @@
       if (item.pairing.dataset.pairing !== status) {
         item.pairing.className = `console-locator-pairing ${status}`;
         item.pairing.dataset.pairing = status;
-        item.pairing.textContent = pairingLabels.get(status);
+        item.pairing.textContent = uiText(pairingLabels.get(status));
       }
       return status;
     }
@@ -36,12 +38,12 @@
           const eligible = allowed(role, console);
           input.disabled = blocked() || !eligible;
           input.checked = selected[role] === host && eligible;
-          const label = role === 'jb' ? 'JB helper' : 'OFW target';
-          input.setAttribute('aria-label', `Use ${console.name} (${host}) as ${label}`);
-          input.title = !ps5(console) ? `Select a discovered PS5; this device is ${console.type || 'unknown'}.`
-            : role === 'jb' && !normalizeFirmware(console.firmware) ? 'JB selection requires known PS5 firmware.'
-            : role === 'jb' && !eligible ? `JB selection requires firmware ${formatFirmware(firmwareLimit)} or below.`
-            : `Use this PS5 as the ${label}.`;
+          const label = role === 'jb' ? uiText('JB helper') : uiText('OFW target');
+          input.setAttribute('aria-label', uiText`Use ${console.name} (${host}) as ${label}`);
+          input.title = !ps5(console) ? uiText`Select a discovered PS5; this device is ${console.type || uiText('Unknown')}.`
+            : role === 'jb' && !normalizeFirmware(console.firmware) ? uiText('JB selection requires known PS5 firmware.')
+            : role === 'jb' && !eligible ? uiText`JB selection requires firmware ${formatFirmware(firmwareLimit)} or below.`
+            : uiText`Use this PS5 as the ${label}.`;
           item.row.classList.toggle(`${role}-selected`, input.checked);
         }
       }
@@ -80,9 +82,9 @@
       for (const [index, console] of ordered.entries()) {
         let item = rows.get(console.host);
         if (!item) { item = makeRow(console.host); rows.set(console.host, item); }
-        item.name.textContent = console.name; item.name.title = console.type || 'Unknown console type';
-        item.type.textContent = console.type || 'Unknown';
-        item.id.textContent = console.hostId || 'Unknown'; item.id.title = console.hostId || 'Unknown';
+        item.name.textContent = console.name; item.name.title = console.type || uiText('Unknown console type');
+        item.type.textContent = console.type || uiText('Unknown');
+        item.id.textContent = console.hostId || uiText('Unknown'); item.id.title = console.hostId || uiText('Unknown');
         item.firmware.textContent = formatFirmware(console.firmware);
         item.firmware.title = typeof console.firmware === 'string' || typeof console.firmware === 'number' ? String(console.firmware) : '';
         paintPairing(item, console.pairing);
@@ -91,7 +93,7 @@
       if (!ordered.length) {
         const row = document.createElement('tr'), cell = document.createElement('td');
         row.className = 'console-locator-empty'; cell.colSpan = 8; cell.className = 'empty';
-        cell.textContent = 'No PlayStations found. Find PlayStations or connect by IPv4.';
+        cell.textContent = uiText('No PlayStations found. Find PlayStations or connect by IPv4.');
         row.appendChild(cell); tbody.appendChild(row);
       }
       update();

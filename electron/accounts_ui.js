@@ -157,7 +157,7 @@
     function setNameFailure(item, error) {
       item.failure = error;
       item.error.hidden = !error;
-      item.error.textContent = error?.message || (error ? uiText('Could not save the account name.') : '');
+      item.error.textContent = error ? uiText(error.message || 'Could not save the account name.') : '';
       if (error) item.input.setAttribute('aria-invalid', 'true');
       else item.input.removeAttribute('aria-invalid');
     }
@@ -301,7 +301,7 @@
         await mutate(() => bridge.add(id, value), 'Account name saved.');
         closeNameDialog();
       } catch (error) {
-        if (nameError) nameError.textContent = error?.message || uiText('Could not save the account name.');
+        if (nameError) nameError.textContent = uiText(error?.message || 'Could not save the account name.');
         nameInput.focus();
       }
     }

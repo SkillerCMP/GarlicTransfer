@@ -65,6 +65,14 @@ test('canceling during shared helper startup cannot spawn an orphan download', a
   assert.equal(vm.runInContext('active', f.context), null);
 });
 
+test('cached metadata does not skip pairing in a fresh app session', t => {
+  const f = fixture(t);
+  vm.runInContext('let requestedPairing = false; startPairing = () => { requestedPairing = true; };', f.context);
+  f.context.startDownload({ ...f.options, accountId: '' });
+  assert.equal(vm.runInContext('requestedPairing', f.context), true);
+  assert.equal(f.children.length, 0);
+});
+
 test('canceling metadata preparation keeps the PC snapshot until that child closes', async t => {
   const f = fixture(t);
   f.context.startUpload({ ...f.options });

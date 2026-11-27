@@ -6,20 +6,22 @@
   // Function Workspace Tree
   function create(document, container, { onOpen = () => {}, onAction = () => {}, isBusy = () => false } = {}) {
     const window = document.defaultView;
+    const uiText = window.GarlicI18n?.t || ((source, ...values) =>
+      typeof source === 'string' ? source : String.raw({ raw: source }, ...values));
     const scroll = container.closest('.workspace-files') || container.parentElement;
     const rows = new Map(), expanded = new Set();
     let nodes = [], workspace = null, focusKey = '', selected = '', busy = false, menuFile = null, menuRow = null;
     const blocked = () => busy || isBusy();
     container.setAttribute('role', 'rowgroup');
     container.closest('table')?.setAttribute('role', 'treegrid');
-    container.closest('table')?.setAttribute('aria-label', 'Decrypted save files');
+    container.closest('table')?.setAttribute('aria-label', uiText('Decrypted save files'));
     const menu = document.createElement('div');
     menu.id = 'workspaceFileContextMenu'; menu.className = 'save-context-menu workspace-file-menu';
-    menu.hidden = true; menu.setAttribute('role', 'menu'); menu.setAttribute('aria-label', 'File actions');
+    menu.hidden = true; menu.setAttribute('role', 'menu'); menu.setAttribute('aria-label', uiText('File actions'));
     const actions = [['edit', 'Edit file'], ['replace', 'Replace file…'], ['export', 'Export file'], ['delete', 'Delete file']];
     for (const [action, label] of actions) {
       const button = document.createElement('button');
-      button.type = 'button'; button.dataset.action = action; button.textContent = label;
+      button.type = 'button'; button.dataset.action = action; button.textContent = uiText(label);
       button.setAttribute('role', 'menuitem');
       if (action === 'delete') button.className = 'danger';
       menu.appendChild(button);
@@ -56,7 +58,7 @@
       focus(node); menuFile = node.file; menuRow = node.row;
       for (const button of menu.querySelectorAll('button')) {
         button.disabled = button.dataset.action === 'delete' && Boolean(node.file.protected);
-        button.title = button.disabled ? 'Metadata and sce_sys files are protected from deletion.' : '';
+        button.title = button.disabled ? uiText('Metadata and sce_sys files are protected from deletion.') : '';
       }
       menu.hidden = false;
       const width = menu.offsetWidth || 208, height = menu.offsetHeight || 168;
@@ -137,7 +139,7 @@
         node.row.classList.toggle('workspace-tree-folder', node.folder);
         node.row.classList.toggle('workspace-tree-file', !node.folder);
         node.row.setAttribute('aria-level', String(node.parents.length + 1));
-        node.row.setAttribute('aria-label', node.folder ? `${node.name}, folder` : `${node.name}, ${node.file.size || 0} bytes`);
+        node.row.setAttribute('aria-label', node.folder ? uiText`${node.name}, folder` : uiText`${node.name}, ${node.file.size || 0} bytes`);
         node.row.title = node.path;
         node.row.dataset[node.folder ? 'folderPath' : 'filePath'] = node.path;
         node.row.style.setProperty('--tree-depth', node.parents.length);

@@ -257,10 +257,13 @@ test('pairing-info IPC forwards identity and preserves the existing boolean pair
   vm.runInContext(fs.readFileSync(filename, 'utf8'), context, { filename });
   const result = routes.get('transfer:pair-info')({}, identity);
   assert.equal(result.status, 'previous');
-  assert.deepEqual(calls, [{ root: f.root, selected: identity }]);
+  const sessionRoot = calls[0].root;
+  assert.equal(path.dirname(sessionRoot), f.root);
+  assert.match(path.basename(sessionRoot), /^garlic-pairing-/);
+  assert.deepEqual(calls, [{ root: sessionRoot, selected: identity }]);
   const identities = [identity, previousIdentity];
   assert.deepEqual(routes.get('transfer:pair-infos')({}, identities), [{ status: 'previous' }, { status: 'previous' }]);
-  assert.deepEqual(calls[1], { root: f.root, selected: identities, batch: true });
+  assert.deepEqual(calls[1], { root: sessionRoot, selected: identities, batch: true });
   assert.equal(routes.get('transfer:pair-status')({}, identity), true);
   assert.equal(routes.get('transfer:pair-status')({}, {}), false);
   failure = new Error('permission denied');

@@ -304,7 +304,8 @@ def download(options):
 
         def download_rows(selected_rows):
             for index, (entry_id, path, _, _) in enumerate(selected_rows, 1):
-                emit("status", step=4, message=f"Downloading entry {entry_id} ({index}/{len(selected_rows)}).")
+                emit("status", step=4, message=f"Downloading entry {entry_id} ({index}/{len(selected_rows)}).",
+                     progress={"entryId": entry_id, "current": index, "total": len(selected_rows)})
                 download_entry(data, entry_id, output, package_only=path.startswith("/user/app/"))
             index_downloaded_manifests(output)
 
@@ -328,6 +329,7 @@ def download(options):
                 emit(
                     "downloaded",
                     message=f"Downloaded {len(selected_rows)} selected entries to {output}",
+                    destination=str(output),
                     users=users,
                     entryIds=[row[0] for row in selected_rows],
                 )
@@ -340,6 +342,7 @@ def download(options):
         emit(
             "done",
             message=f"Downloaded {len(selected_rows)} selected entries to {output}",
+            destination=str(output),
             users=users,
             entryIds=[row[0] for row in selected_rows],
         )
