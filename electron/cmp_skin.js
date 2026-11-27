@@ -332,7 +332,7 @@
     function renderLibrary() {
       if (!libraryData) return;
       library.render({ ...libraryData, entries: visible(libraryData.entries, localFilter), busy: busy || libraryBusy,
-        emptyText: uiText('No downloaded saves for this user. Refresh local files or download from the console.') });
+        emptyText: libraryData.emptyText || uiText('No downloaded saves for this user. Refresh local files or download from the console.') });
     }
 
     filter.addEventListener('change', () => {
