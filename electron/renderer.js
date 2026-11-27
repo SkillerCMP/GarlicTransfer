@@ -73,7 +73,7 @@ async function refreshCmpFiles() {
   try {
     const result = await window.saveTransfer.localSaves(assets);
     if (request === cmpFilesRequest && assets === options().assets) cmpLayout.setFiles(result.entries || []);
-  } catch (error) { appendLog(`[CMP] Could not load local filenames: ${error.message}`); }
+  } catch (error) { appendLog(uiText`[CMP] Could not load local filenames: ${error.message}`); }
 }
 
 // Function Upload Tree
@@ -87,8 +87,8 @@ controls.uploadSaveSelect.addEventListener('change', uploadTree.updateSelection)
 // Mirror connection settings.
 function updateCmpConnection() {
   const selected = controls.consoleSelect.selectedOptions[0];
-  byId('cmpTarget').textContent = targetIdentityChanged ? 'Choose the OFW console again'
-    : selected?.value ? selected.textContent : 'Locate a PS5 to begin';
+  byId('cmpTarget').textContent = targetIdentityChanged ? uiText('Choose the OFW console again')
+    : selected?.value ? selected.textContent : uiText('Locate a PS5 to begin');
   byId('cmpOracleHost').value = controls.oracleHost.value;
   byId('cmpWorker').checked = controls.useRemoteOracle.checked;
   byId('cmpOracleHost').disabled = accountClosing || controls.useRemoteOracle.checked || Boolean(activeTransfer);
@@ -120,12 +120,12 @@ controls.externalTitleId.addEventListener('input', renderCmpUpload);
 // Function Confirmation
 async function confirmAction(message) {
   if (typeof window.saveTransfer.confirm !== 'function') {
-    status('Confirmation is unavailable. Restart GarlicTransfer and try again.');
+    status(uiText('Confirmation is unavailable. Restart GarlicTransfer and try again.'));
     return false;
   }
   try { return await window.saveTransfer.confirm(message) === true; }
   catch (error) {
-    status(`Could not show confirmation: ${error.message}`);
+    status(uiText`Could not show confirmation: ${error.message}`);
     return false;
   }
 }
@@ -217,7 +217,7 @@ function renderConsoleLocator() {
     && (selectedJbConsole.type !== 'PS5' || !consoleInfo.firmwareEligible(selectedJbConsole.firmware, limit))) {
     selectedJbConsole = null;
     controls.oracleHost.value = ''; byId('cmpOracleHost').value = '';
-    consoleLocatorStatus('The selected JB helper no longer meets the maximum JB firmware. Choose another helper.');
+    consoleLocatorStatus(uiText('The selected JB helper no longer meets the maximum JB firmware. Choose another helper.'));
   }
   const target = selectedConsoleInfo();
   const discoveredTarget = locatedConsoles.find(console => console.host === target?.host);
@@ -245,7 +245,7 @@ function consoleLocatorStatus(message) {
 
 // Function Console Direction
 function updateConsoleDirection() {
-  const label = currentPage === 'download' ? 'Source PS5' : currentPage === 'upload' ? 'Receiving PS5' : 'Source/Receiving PS5';
+  const label = currentPage === 'download' ? uiText('Source PS5') : currentPage === 'upload' ? uiText('Receiving PS5') : uiText('Source/Receiving PS5');
   if (controls.transferConsoleLabel) controls.transferConsoleLabel.textContent = label;
   if (byId('cmpTargetLabel')) byId('cmpTargetLabel').textContent = label;
 }
@@ -296,7 +296,7 @@ function showLocatedConsoles(consoles) {
   const jbHost = controls.oracleHost.value.trim();
   let identityChanged = false;
   const placeholder = document.createElement('option');
-  placeholder.value = ''; placeholder.textContent = 'Select an OFW / transfer PS5';
+  placeholder.value = ''; placeholder.textContent = uiText('Select an OFW / transfer PS5');
   controls.consoleSelect.replaceChildren(placeholder);
   const seen = new Set();
   for (const console of consoles) {
@@ -388,10 +388,10 @@ function updateSidebarConsole() {
     badge.classList.toggle('connected', connected);
     byId('sidebarConsoleName').textContent = connected
       ? selected.textContent.split(' — ')[0].trim()
-      : targetIdentityChanged ? 'Choose OFW again' : 'Not connected';
+      : targetIdentityChanged ? uiText('Choose OFW again') : uiText('Not connected');
     byId('sidebarConsoleDetail').textContent = connected
       ? selected.value
-      : targetIdentityChanged ? 'Console identity changed' : 'Discover a PS5 to begin';
+      : targetIdentityChanged ? uiText('Console identity changed') : uiText('Discover a PS5 to begin');
   }
 }
 
@@ -455,9 +455,9 @@ function updateSelection() {
   const count = selectedEntryIds.size;
   const visible = cmpLayout.active ? cmpLayout.visibleRemoteEntries() : saveEntriesMatchingSearch();
   const visibleSelected = visible.filter((entry) => selectedEntryIds.has(entry.id)).length;
-  controls.entryCount.textContent = cmpLayout.active ? `${count} entries selected · ${visible.length} visible` : count
-    ? `${count} of ${availableEntries.length} save(s) selected`
-    : `${availableEntries.length} save(s); none selected`;
+  controls.entryCount.textContent = cmpLayout.active ? uiText`${count} entries selected · ${visible.length} visible` : count
+    ? uiText`${count} of ${availableEntries.length} save(s) selected`
+    : uiText`${availableEntries.length} save(s); none selected`;
   controls.selectAllEntries.checked = visibleSelected > 0 && visibleSelected === visible.length;
   controls.selectAllEntries.indeterminate = visibleSelected > 0 && visibleSelected < visible.length;
   controls.selectAllEntries.disabled = accountClosing || Boolean(activeTransfer) || !visible.length;
@@ -564,7 +564,7 @@ function releasePcUpload(stageId = localPcUploadId) {
   if (stageId === localPcUploadId) localPcUploadId = null;
   if (!stageId) return;
   return Promise.resolve().then(() => window.saveTransfer.releaseLocalPcUpload(stageId))
-    .catch(error => appendLog(`[local] Could not remove upload staging: ${error.message}`));
+    .catch(error => appendLog(uiText`[local] Could not remove upload staging: ${error.message}`));
 }
 
 function hideImportModal() {
@@ -586,7 +586,7 @@ function renderLocalEntries(entries) {
     for (const file of entry.files) {
       const row = document.createElement('tr');
       const title = document.createElement('td');
-      title.textContent = `${localEntryTitle(entry)} · entry ${entry.id}`;
+      title.textContent = uiText`${localEntryTitle(entry)} · entry ${entry.id}`;
       const owner = document.createElement('td');
       owner.textContent = entry.owner;
       const name = document.createElement('td');
@@ -597,12 +597,12 @@ function renderLocalEntries(entries) {
       const exportButton = document.createElement('button');
       exportButton.type = 'button';
       exportButton.className = 'local-action';
-      exportButton.textContent = 'Export';
+      exportButton.textContent = uiText('Export');
       exportButton.addEventListener('click', () => exportLocalSave(entry, file));
       const importButton = document.createElement('button');
       importButton.type = 'button';
       importButton.className = 'local-action';
-      importButton.textContent = 'Import';
+      importButton.textContent = uiText('Import');
       importButton.addEventListener('click', () => chooseImportReplacement(entry, file));
       actions.append(exportButton, importButton);
       row.append(title, owner, name, size, actions);
@@ -624,21 +624,21 @@ async function refreshLocalSaves() {
 async function browseLocalSaves() {
   if (accountClosing) return;
   if (!options().clientHost) {
-    status('Discover your console first.');
+    status(uiText('Discover your console first.'));
     return;
   }
   if (activeTransfer || browseSessionActive) {
-    status('Stop the active transfer before changing local saves.');
+    status(uiText('Stop the active transfer before changing local saves.'));
     return;
   }
   activeTransfer = 'local';
   busy(true);
   try {
     const { count, warnings } = await refreshLocalSaves();
-    const warning = warnings.length ? ` Skipped ${warnings.length} invalid manifest(s): ${warnings.join('; ')}` : '';
-    status(`Found ${count} downloaded file(s). Export a copy or import a replacement.${warning}`);
+    const warning = warnings.length ? uiText` Skipped ${warnings.length} invalid manifest(s): ${warnings.join('; ')}` : '';
+    status(uiText`Found ${count} downloaded file(s). Export a copy or import a replacement.${warning}`);
   } catch (error) {
-    status(`Could not browse local saves: ${error.message}`);
+    status(uiText`Could not browse local saves: ${error.message}`);
   } finally {
     activeTransfer = null;
     busy(false);
@@ -656,9 +656,9 @@ async function exportLocalSave(entry, file) {
       entryId: entry.id,
       filename: file.file,
     });
-    if (result) status(`Exported ${file.file} to ${result.destination}`);
+    if (result) status(uiText`Exported ${file.file} to ${result.destination}`);
   } catch (error) {
-    status(`Could not export ${file.file}: ${error.message}`);
+    status(uiText`Could not export ${file.file}: ${error.message}`);
   } finally {
     activeTransfer = null;
     busy(false);
@@ -671,8 +671,8 @@ async function chooseImportReplacement(entry, file) {
   if (accountClosing || !source) return;
   pendingImport = { assets: options().assets, ...(entry.localSource === 'pc' ? { localSource: 'pc' } : {}), entryId: entry.id, filename: file.file, source };
   controls.importWarning.textContent = entry.localSource === 'pc'
-    ? `This will replace ${file.file}. A backup will be kept before replacement. Continue?`
-    : `This will replace ${file.file}. Make sure you have backed it up. Are you sure you want to do this?`;
+    ? uiText`This will replace ${file.file}. A backup will be kept before replacement. Continue?`
+    : uiText`This will replace ${file.file}. Make sure you have backed it up. Are you sure you want to do this?`;
   if (!controls.importModal.open) controls.importModal.showModal();
 }
 
@@ -686,10 +686,10 @@ controls.confirmImportBtn.addEventListener('click', async () => {
   try {
     await window.saveTransfer.importLocalSave(replacement);
     if (replacement.localSource !== 'pc') await refreshLocalSaves();
-    status(replacement.localSource === 'pc' ? `Replaced ${replacement.filename}. A backup is available.` : `Replaced ${replacement.filename} and refreshed its upload metadata.`);
+    status(replacement.localSource === 'pc' ? uiText`Replaced ${replacement.filename}. A backup is available.` : uiText`Replaced ${replacement.filename} and refreshed its upload metadata.`);
     document.dispatchEvent(new CustomEvent('local-save-replaced', { detail: replacement }));
   } catch (error) {
-    status(`Could not replace ${replacement.filename}: ${error.message}`);
+    status(uiText`Could not replace ${replacement.filename}: ${error.message}`);
   } finally {
     activeTransfer = null;
     busy(false);
@@ -712,7 +712,7 @@ function renderEntryTable(container, entries, emptyText) {
     checkbox.type = 'checkbox';
     checkbox.className = 'entry-check';
     checkbox.checked = selectedEntryIds.has(entry.id);
-    checkbox.setAttribute('aria-label', `Select ${entry.name || entry.title}`);
+    checkbox.setAttribute('aria-label', uiText`Select ${entry.name || entry.title}`);
     checkbox.addEventListener('change', () => {
       if (checkbox.checked) selectedEntryIds.add(entry.id);
       else selectedEntryIds.delete(entry.id);
@@ -724,10 +724,10 @@ function renderEntryTable(container, entries, emptyText) {
     const titleCell = document.createElement('td');
     const name = document.createElement('span');
     name.className = 'title-name';
-    name.textContent = entry.name || 'Unknown title';
+    name.textContent = entry.name || uiText('Unknown title');
     const titleId = document.createElement('span');
     titleId.className = 'title-id';
-    titleId.textContent = `${entry.title} · ${entry.kind || 'save'} · entry ${entry.id}`;
+    titleId.textContent = uiText`${entry.title} · ${entry.kind || 'save'} · entry ${entry.id}`;
     titleCell.append(name, titleId);
     row.appendChild(titleCell);
 
@@ -744,13 +744,13 @@ function renderEntryTable(container, entries, emptyText) {
     const download = document.createElement('button');
     download.type = 'button';
     download.className = 'row-download';
-    download.textContent = downloadedEntryIds.has(entry.id) ? 'Download again' : 'Download';
+    download.textContent = downloadedEntryIds.has(entry.id) ? uiText('Download again') : uiText('Download');
     download.addEventListener('click', () => startDownload([entry.id]));
     actionCell.appendChild(download);
     if (downloadedEntryIds.has(entry.id)) {
       const downloaded = document.createElement('span');
       downloaded.className = 'downloaded';
-      downloaded.textContent = 'Downloaded';
+      downloaded.textContent = uiText('Downloaded');
       actionCell.appendChild(downloaded);
     }
     row.appendChild(actionCell);
@@ -786,18 +786,18 @@ controls.saveSearch.addEventListener('input', renderEntries);
 async function browseSaves(forUpload = false) {
   if (accountClosing) return;
   if (!forUpload && browseSessionActive) {
-    status('The download session is already open. Select saves from the browser.');
+    status(uiText('The download session is already open. Select saves from the browser.'));
     return;
   }
   const current = options();
   if (!current.clientHost) {
-    status('Discover and select a console first.');
+    status(uiText('Discover and select a console first.'));
     return;
   }
   pendingBrowserHost = current.clientHost;
   activeTransfer = forUpload ? 'upload-metadata' : 'browse';
   busy(true);
-  status('Step 1/3: downloading the console save list.');
+  status(uiText('Step 1/3: downloading the console save list.'));
   if (!forUpload) {
     byId('saveBrowser').hidden = true;
     if (!cmpLayout.active) controls.entries.innerHTML = '<tr><td colspan="5" class="empty">Downloading metadata…</td></tr>';
@@ -810,7 +810,7 @@ async function browseSaves(forUpload = false) {
       entryIds: [],
     });
   } catch (error) {
-    status(`Could not browse saves: ${error.message}`);
+    status(uiText`Could not browse saves: ${error.message}`);
     activeTransfer = null;
     busy(false);
   }
@@ -819,21 +819,21 @@ async function browseSaves(forUpload = false) {
 async function startDownload(entryIds) {
   if (accountClosing) return;
   if (!entryIds.length) {
-    status('Select at least one save to download.');
+    status(uiText('Select at least one save to download.'));
     return;
   }
   if (!browseSessionActive) {
-    status('The download session is not open. Browse the console again first.');
+    status(uiText('The download session is not open. Browse the console again first.'));
     return;
   }
   requestedDownloadIds = entryIds;
   activeTransfer = 'download';
   busy(true);
-  status(`Downloading ${entryIds.length} selected save(s) on the open Data Transfer session.`);
+  status(uiText`Downloading ${entryIds.length} selected save(s) on the open Data Transfer session.`);
   try {
     await window.saveTransfer.select(entryIds);
   } catch (error) {
-    status(`Could not start download: ${error.message}`);
+    status(uiText`Could not start download: ${error.message}`);
     activeTransfer = null;
     browseSessionActive = false;
     browseSessionVersion++;
@@ -843,17 +843,17 @@ async function startDownload(entryIds) {
 
 async function startUploadSource() {
   if (accountClosing) return;
-  if (targetIdentityChanged) { status('Choose the OFW console again before starting a transfer.'); return; }
+  if (targetIdentityChanged) { status(uiText('Choose the OFW console again before starting a transfer.')); return; }
   const selectedUser = controls.userSelect.selectedOptions[0];
   const externalSelected = [...controls.uploadSaveSelect.selectedOptions].some((option) => option.value === 'external');
   const entryIds = [...controls.uploadSaveSelect.selectedOptions].filter((option) => option.value !== 'external').map((option) => Number(option.value));
   const titleId = controls.externalTitleId.value.trim().toUpperCase();
   if (externalSelected && (entryIds.length || !externalUploadImage || !/^PPSA[0-9]{5}$/.test(titleId))) {
-    status('Select the external save by itself and enter its PPSA title ID (for example PPSA12345).');
+    status(uiText('Select the external save by itself and enter its PPSA title ID (for example PPSA12345).'));
     return;
   }
   if (!selectedUser || (!entryIds.length && !externalSelected)) {
-    status('Select one user and at least one downloaded entry before continuing.');
+    status(uiText('Select one user and at least one downloaded entry before continuing.'));
     return;
   }
   const uploadKinds = new Set(entryIds.map((id) => {
@@ -861,7 +861,7 @@ async function startUploadSource() {
     return entry?.kind === 'save' ? 'save' : 'other';
   }));
   if (!externalSelected && uploadKinds.size !== 1) {
-    status('Upload saves and other content in separate batches.');
+    status(uiText('Upload saves and other content in separate batches.'));
     return;
   }
   const current = {
@@ -881,11 +881,11 @@ async function startUploadSource() {
   controls.confirmUploadBtn.hidden = true;
   controls.userSelectLabel.hidden = true;
   controls.uploadSaveSelectLabel.hidden = true;
-  status(`Step 1/3: building metadata for ${externalSelected ? 1 : entryIds.length} entries.`);
+  status(uiText`Step 1/3: building metadata for ${externalSelected ? 1 : entryIds.length} entries.`);
   try {
     await window.saveTransfer.upload(current);
   } catch (error) {
-    status(`Could not start upload: ${error.message}`);
+    status(uiText`Could not start upload: ${error.message}`);
     activeTransfer = null;
     resetUploadUI();
     busy(false);
@@ -916,7 +916,7 @@ function showUploadConfirmation() {
   for (const entry of downloadedEntries) {
     const option = document.createElement('option');
     option.value = entry.id;
-    option.textContent = `${entry.name || entry.title} (${entry.title}) — ${entry.owner} — entry ${entry.id}`;
+    option.textContent = uiText`${entry.name || entry.title} (${entry.title}) — ${entry.owner} — entry ${entry.id}`;
     controls.uploadSaveSelect.appendChild(option);
   }
   if (pendingUploadEntryIds) {
@@ -929,21 +929,21 @@ function showUploadConfirmation() {
     externalUploadImage = pendingExternalUpload.folder;
     controls.externalTitleId.value = pendingExternalUpload.titleId;
     const option = document.createElement('option'); option.value = 'external';
-    option.textContent = `Local PC: ${pendingExternalUpload.titleId}`;
+    option.textContent = uiText`Local PC: ${pendingExternalUpload.titleId}`;
     controls.uploadSaveSelect.appendChild(option);
     for (const item of controls.uploadSaveSelect.options) item.selected = item === option;
     pendingExternalUpload = null;
   }
   if (!availableUsers.length) {
     resetUploadUI();
-    status('No downloaded files are available. Download content before uploading it.');
+    status(uiText('No downloaded files are available. Download content before uploading it.'));
     return;
   }
   controls.userSelectLabel.hidden = false;
   controls.uploadSaveSelectLabel.hidden = false;
   controls.confirmUploadBtn.hidden = false;
   renderCmpUpload();
-  status('Select downloaded entries, or add an external encrypted save.');
+  status(uiText('Select downloaded entries, or add an external encrypted save.'));
 }
 
 // Prepare upload selection.
@@ -960,7 +960,7 @@ async function startUpload({ entryIds = null, userId = null, external = null } =
   const current = options();
   if (!current.clientHost) {
     resetUploadUI();
-    status('Discover and select a console first.');
+    status(uiText('Discover and select a console first.'));
     return;
   }
   byId('uploadDestination').hidden = false;
@@ -989,19 +989,19 @@ async function startUpload({ entryIds = null, userId = null, external = null } =
     if (accountClosing) { await releasePcUpload(); return; }
     if (hasExplicitMetadata) {
       resetUploadUI();
-      status(`Could not read metadata inventory: ${error.message}`);
+      status(uiText`Could not read metadata inventory: ${error.message}`);
       return;
     }
-    appendLog(`[metadata] no usable previous metadata at ${previousMetadata}; fetching from console`);
+    appendLog(uiText`[metadata] no usable previous metadata at ${previousMetadata}; fetching from console`);
   }
   pendingBrowserHost = current.clientHost;
   activeTransfer = 'upload-metadata';
   busy(true);
-  status('Step 1/3: fetching the client user and save list before upload.');
+  status(uiText('Step 1/3: fetching the client user and save list before upload.'));
   try {
     await window.saveTransfer.download({ ...current, metadataOnly: true, entryIds: [] });
   } catch (error) {
-    status(`Could not fetch metadata: ${error.message}`);
+    status(uiText`Could not fetch metadata: ${error.message}`);
     activeTransfer = null;
     resetUploadUI();
     busy(false);
@@ -1044,16 +1044,16 @@ controls.discoverBtn.addEventListener('click', async () => {
   discoveryPending = true;
   controls.discoverBtn.disabled = true;
   renderConsoleLocator();
-  consoleLocatorStatus('Discovering consoles with SRCH…');
+  consoleLocatorStatus(uiText('Discovering consoles with SRCH…'));
   try {
     const consoles = consoleInfo.normalizeConsoles(await window.saveTransfer.discover(options()));
     if (request !== consoleScanVersion || consoleSelectionLocked()) return;
     const notice = showLocatedConsoles(consoles);
     consoleLocatorStatus((consoles.length
-      ? `Found ${consoles.length} console(s). Choose JB for a helper or OFW for transfers.`
-      : 'No consoles found. Check the network and firewall.') + (notice ? ` ${notice}` : ''));
+      ? uiText`Found ${consoles.length} console(s). Choose JB for a helper or OFW for transfers.`
+      : uiText('No consoles found. Check the network and firewall.')) + (notice ? ` ${notice}` : ''));
   } catch (error) {
-    if (request === consoleScanVersion && !consoleSelectionLocked()) consoleLocatorStatus(`Discovery failed: ${error.message}`);
+    if (request === consoleScanVersion && !consoleSelectionLocked()) consoleLocatorStatus(uiText`Discovery failed: ${error.message}`);
   } finally {
     discoveryPending = false;
     controls.discoverBtn.disabled = accountClosing || Boolean(activeTransfer) || browseSessionActive;
@@ -1065,27 +1065,27 @@ controls.manualConnectBtn.addEventListener('click', async () => {
   if (consoleSelectionLocked() || manualConnectionPending) return;
   const host = consoleInfo.canonicalIPv4(controls.manualHost.value.trim());
   if (!host) {
-    consoleLocatorStatus('Enter a valid PS5 IPv4 address.');
+    consoleLocatorStatus(uiText('Enter a valid PS5 IPv4 address.'));
     return;
   }
   const request = ++consoleScanVersion;
   manualConnectionPending = true;
   controls.manualConnectBtn.disabled = true;
   renderConsoleLocator();
-  consoleLocatorStatus(`Contacting PS5 at ${host}…`);
+  consoleLocatorStatus(uiText`Contacting PS5 at ${host}…`);
   try {
     const consoles = consoleInfo.normalizeConsoles(await window.saveTransfer.discover({ ...options(), targetHost: host }));
     if (request !== consoleScanVersion || consoleSelectionLocked()) return;
     const selected = consoles.find(console => console.host === host && console.type === 'PS5');
     if (!selected) {
-      consoleLocatorStatus(`No PS5 responded at ${host}. Check the address and network.`);
+      consoleLocatorStatus(uiText`No PS5 responded at ${host}. Check the address and network.`);
       return;
     }
     showLocatedConsoles(consoles);
     selectTransferConsole(selected);
-    consoleLocatorStatus(`Using ${selected.name || 'PS5'} at ${host} (${formatFirmware(selected.firmware)}).`);
+    consoleLocatorStatus(uiText`Using ${selected.name || 'PS5'} at ${host} (${formatFirmware(selected.firmware)}).`);
   } catch (error) {
-    if (request === consoleScanVersion && !consoleSelectionLocked()) consoleLocatorStatus(`Could not use ${host}: ${error.message}`);
+    if (request === consoleScanVersion && !consoleSelectionLocked()) consoleLocatorStatus(uiText`Could not use ${host}: ${error.message}`);
   } finally {
     manualConnectionPending = false;
     controls.manualConnectBtn.disabled = accountClosing || Boolean(activeTransfer) || browseSessionActive;
@@ -1094,7 +1094,7 @@ controls.manualConnectBtn.addEventListener('click', async () => {
 });
 
 let deviceAuthorizationPending = false;
-const authorizationDescriptionDefault = 'Remote oracle and online save tools require an authorized GarlicTransfer installation. Authorize this app with your GarlicSaves account to continue.';
+const authorizationDescriptionDefault = uiText('Remote oracle and online save tools require an authorized GarlicTransfer installation. Authorize this app with your GarlicSaves account to continue.');
 function hideDeviceAuthFallback() {
   controls.deviceAuthFallback.hidden = true;
 }
@@ -1103,15 +1103,15 @@ function showAuthorizationRequired() {
     controls.authorizationDescription.textContent = authorizationDescriptionDefault;
     controls.authorizationFallback.hidden = true;
     controls.authorizationNowBtn.disabled = false;
-    controls.authorizationNowBtn.textContent = 'Authorize now';
+    controls.authorizationNowBtn.textContent = uiText('Authorize now');
   }
   if (!controls.authorizationModal.open) controls.authorizationModal.showModal();
 }
 controls.authorizationCancelBtn.addEventListener('click', () => controls.authorizationModal.close());
 controls.authorizationNowBtn.addEventListener('click', () => {
-  controls.authorizationDescription.textContent = 'Authorize in your browser. Keep this window open while you approve the request.';
+  controls.authorizationDescription.textContent = uiText('Authorize in your browser. Keep this window open while you approve the request.');
   controls.authorizationNowBtn.disabled = true;
-  controls.authorizationNowBtn.textContent = 'Waiting for approval…';
+  controls.authorizationNowBtn.textContent = uiText('Waiting for approval…');
   showPage('settings');
   controls.authorizeDeviceBtn.click();
 });
@@ -1126,9 +1126,9 @@ async function copyAuthorizationLink(input, button) {
     input.select();
     copied = document.execCommand('copy');
   }
-  button.textContent = copied ? 'Copied!' : 'Select link';
+  button.textContent = copied ? uiText('Copied!') : uiText('Select link');
   if (!copied) { input.focus(); input.select(); }
-  setTimeout(() => { button.textContent = 'Copy link'; }, 1500);
+  setTimeout(() => { button.textContent = uiText('Copy link'); }, 1500);
 }
 controls.deviceAuthCopyBtn.addEventListener('click', () => copyAuthorizationLink(controls.deviceAuthUrl, controls.deviceAuthCopyBtn));
 controls.authorizationCopyBtn.addEventListener('click', () => copyAuthorizationLink(controls.authorizationUrl, controls.authorizationCopyBtn));
@@ -1141,11 +1141,11 @@ window.saveTransfer.onDeviceEvent?.(detail => {
     controls.deviceAuthUrl.value = detail.verificationUri;
     controls.deviceAuthCode.textContent = detail.userCode;
     controls.deviceAuthFallback.hidden = false;
-    controls.deviceAuthStatus.textContent = `Approve the request in your browser. The code expires in ${Math.ceil((detail.expiresIn || 600) / 60)} minutes.`;
+    controls.deviceAuthStatus.textContent = uiText`Approve the request in your browser. The code expires in ${Math.ceil((detail.expiresIn || 600) / 60)} minutes.`;
     controls.authorizationUrl.value = detail.verificationUri;
     controls.authorizationCode.textContent = detail.userCode;
     controls.authorizationFallback.hidden = false;
-    controls.authorizationDescription.textContent = `Authorize in your browser. If your browser doesn't open, copy the link below. The code expires in ${Math.ceil((detail.expiresIn || 600) / 60)} minutes.`;
+    controls.authorizationDescription.textContent = uiText`Authorize in your browser. If your browser doesn't open, copy the link below. The code expires in ${Math.ceil((detail.expiresIn || 600) / 60)} minutes.`;
   }
 });
 controls.authorizeDeviceBtn.addEventListener('click', async () => {
@@ -1155,15 +1155,15 @@ controls.authorizeDeviceBtn.addEventListener('click', async () => {
   controls.settingsSave.disabled = true;
   hideDeviceAuthFallback();
   controls.authorizationFallback.hidden = true;
-  controls.deviceAuthStatus.textContent = 'Starting installation authorization…';
+  controls.deviceAuthStatus.textContent = uiText('Starting installation authorization…');
   try {
     const result = await window.saveTransfer.authorizeDevice({ serverUrl: controls.serverUrl.value.trim() });
     await loadSettings();
-    controls.deviceAuthStatus.textContent = `Authorized${result.authorizedUser ? ` as ${result.authorizedUser}` : ''}. This installation has its own credential.`;
+    controls.deviceAuthStatus.textContent = uiText`Authorized${result.authorizedUser ? uiText` as ${result.authorizedUser}` : ''}. This installation has its own credential.`;
     controls.authorizationModal.close();
   } catch (error) {
-    controls.deviceAuthStatus.textContent = `Authorization failed: ${error.message}`;
-    if (controls.authorizationModal.open) controls.authorizationDescription.textContent = `Authorization failed: ${error.message}`;
+    controls.deviceAuthStatus.textContent = uiText`Authorization failed: ${error.message}`;
+    if (controls.authorizationModal.open) controls.authorizationDescription.textContent = uiText`Authorization failed: ${error.message}`;
   } finally {
     deviceAuthorizationPending = false;
     controls.authorizeDeviceBtn.disabled = false;
@@ -1171,7 +1171,7 @@ controls.authorizeDeviceBtn.addEventListener('click', async () => {
     hideDeviceAuthFallback();
     if (controls.authorizationModal.open) {
       controls.authorizationNowBtn.disabled = false;
-      controls.authorizationNowBtn.textContent = 'Try again';
+      controls.authorizationNowBtn.textContent = uiText('Try again');
     }
   }
 });
@@ -1190,13 +1190,13 @@ controls.settingsSave.addEventListener('click', async () => {
   const current = options();
   const limit = consoleInfo.normalizeFirmwareLimit(entered);
   if (!limit) {
-    controls.settingsStatus.textContent = `Enter the maximum JB firmware as major.two digits, for example ${consoleInfo.DEFAULT_JB_FIRMWARE}.`;
+    controls.settingsStatus.textContent = uiText`Enter the maximum JB firmware as major.two digits, for example ${consoleInfo.DEFAULT_JB_FIRMWARE}.`;
     return;
   }
   current.jbFirmwareLimit = limit;
   let languageChanged = false;
   try {
-    controls.settingsStatus.textContent = 'Saving settings…';
+    controls.settingsStatus.textContent = uiText('Saving settings…');
     languageChanged = await window.saveTransfer.saveSettings({
       ...current, output: profileRoot || current.output, uiLanguage: controls.uiLanguage.value,
     });
@@ -1231,12 +1231,12 @@ controls.firewallHelperBtn.addEventListener('click', async () => {
   if (accountClosing || firewallPending) return;
   firewallPending = true;
   controls.firewallHelperBtn.disabled = true;
-  controls.firewallStatus.textContent = 'Opening the firewall helper…';
+  controls.firewallStatus.textContent = uiText('Opening the firewall helper…');
   try {
     await window.saveTransfer.runFirewallHelper();
-    controls.firewallStatus.textContent = 'Accept the Windows permission prompt. The helper will attach to GarlicTransfer and remove its rules when the app closes.';
+    controls.firewallStatus.textContent = uiText('Accept the Windows permission prompt. The helper will attach to GarlicTransfer and remove its rules when the app closes.');
   } catch (error) {
-    controls.firewallStatus.textContent = `Could not open the firewall helper: ${error.message}`;
+    controls.firewallStatus.textContent = uiText`Could not open the firewall helper: ${error.message}`;
   } finally {
     firewallPending = false;
     controls.firewallHelperBtn.disabled = accountClosing;
@@ -1256,7 +1256,7 @@ async function loadSettings() {
   await skinAppearance.reload(settings.uiLayout);
   updateOracleMode();
   if (settings.installationId) {
-    controls.deviceAuthStatus.textContent = `Authorized${settings.authorizedUser ? ` as ${settings.authorizedUser}` : ''}. This installation has its own credential.`;
+    controls.deviceAuthStatus.textContent = uiText`Authorized${settings.authorizedUser ? uiText` as ${settings.authorizedUser}` : ''}. This installation has its own credential.`;
   }
   renderConsoleLocator(); updateConsoleDirection();
   window.saveTransfer.version().then((version) => {
@@ -1270,20 +1270,20 @@ controls.pairBtn.addEventListener('click', async () => {
   if (accountClosing) return;
   const current = options();
   if (!current.clientHost) {
-    status('Discover and select the PS5 first.');
+    status(uiText('Discover and select the PS5 first.'));
     return;
   }
   activeTransfer = 'pair';
   showPairingModal();
   busy(true);
-  status('Starting the pairing listener. Follow the instructions in the pairing window.');
+  status(uiText('Starting the pairing listener. Follow the instructions in the pairing window.'));
   try {
     await window.saveTransfer.pair(current);
   } catch (error) {
     activeTransfer = null;
     hidePairingModal();
     busy(false);
-    status(`Could not start pairing: ${error.message}`);
+    status(uiText`Could not start pairing: ${error.message}`);
   }
 });
 
@@ -1292,7 +1292,7 @@ controls.pairingCancelBtn.addEventListener('click', async () => {
   activeTransfer = null;
   hidePairingModal();
   busy(false);
-  status('Pairing cancelled.');
+  status(uiText('Pairing cancelled.'));
 });
 
 controls.uploadModalCloseBtn.addEventListener('click', hideUploadModal);
@@ -1316,15 +1316,15 @@ controls.finishBtn.addEventListener('click', async () => {
   const version = browseSessionVersion;
   controls.finishBtn.disabled = true;
   try {
-    if (!await confirmAction('Close Data Transfer and reboot the console now?')) return;
+    if (!await confirmAction(uiText('Close Data Transfer and reboot the console now?'))) return;
     if (accountClosing || !browseSessionActive || activeTransfer || version !== browseSessionVersion) return;
     activeTransfer = 'finish';
     busy(true);
-    status('Sending DisconnectPS5. The console will reboot.');
+    status(uiText('Sending DisconnectPS5. The console will reboot.'));
     await window.saveTransfer.finish();
   } catch (error) {
     activeTransfer = null;
-    status(`Could not finish the download session: ${error.message}`);
+    status(uiText`Could not finish the download session: ${error.message}`);
     busy(false);
   } finally {
     finishConfirmationPending = false;
@@ -1343,13 +1343,13 @@ controls.cancelBtn.addEventListener('click', async () => {
   browseSessionActive = false;
   browseSessionVersion++;
   busy(false);
-  status('Transfer cancelled.');
+  status(uiText('Transfer cancelled.'));
 });
 controls.powerBtn.addEventListener('click', async () => {
   if (accountClosing) return;
   await window.saveTransfer.power();
   controls.powerBtn.hidden = true;
-  status('Power signal sent. Continue the transfer on the client console.');
+  status(uiText('Power signal sent. Continue the transfer on the client console.'));
 });
 
 for (const name of ['output', 'metadata', 'assets']) {
@@ -1369,6 +1369,17 @@ for (const name of ['output', 'metadata', 'assets']) {
   });
 }
 
+function transferStatus(event) {
+  if (event.type === 'status' && event.progress) {
+    const { entryId, current, total } = event.progress;
+    return uiText`Downloading entry ${entryId} (${current}/${total}).`;
+  }
+  if (event.destination && Array.isArray(event.entryIds)) {
+    return uiText`Downloaded ${event.entryIds.length} selected entries to ${event.destination}`;
+  }
+  return uiText(event.message);
+}
+
 window.saveTransfer.onEvent((event) => {
   if (event.type === 'log') appendLog(event.message);
   if (event.type === 'pairingStarted') {
@@ -1382,11 +1393,11 @@ window.saveTransfer.onEvent((event) => {
     busy(false);
     void refreshLocatorPairing();
     if (!selectedLocatorConsole()) refreshPairingStatus();
-    status(event.message);
+    status(transferStatus(event));
   }
   if (event.type === 'powerRequired') showPowerModal();
   if (event.type === 'status') {
-    status(event.message);
+    status(transferStatus(event));
     if (event.step === 3) hidePowerModal();
     if (event.message === 'Transfer stopped.') {
       activeTransfer = null;
@@ -1418,14 +1429,14 @@ window.saveTransfer.onEvent((event) => {
     activeTransfer = null;
     availableUsers = event.users || availableUsers;
     controls.metadata.value = folderPaths.metadataPath(options().output, 'metadata.db');
-    status(event.message);
+    status(transferStatus(event));
     busy(false);
   }
   if (event.type === 'downloaded') {
     refreshCmpFiles();
     for (const id of event.entryIds || requestedDownloadIds) downloadedEntryIds.add(id);
     controls.metadata.value = folderPaths.metadataPath(options().output, 'metadata.db');
-    status(event.message);
+    status(transferStatus(event));
     controls.powerBtn.hidden = true;
   }
   if (event.type === 'done' && event.metadataOnly) {
@@ -1440,7 +1451,7 @@ window.saveTransfer.onEvent((event) => {
       pendingUploadOptions.metadata = controls.metadata.value;
       showUploadConfirmation();
     } else {
-      status('Save list ready. Select saves to download, or select downloaded saves to upload.');
+      status(uiText('Save list ready. Select saves to download, or select downloaded saves to upload.'));
     }
     busy(false);
     return;
@@ -1459,7 +1470,7 @@ window.saveTransfer.onEvent((event) => {
       controls.metadata.value = folderPaths.metadataPath(options().output, 'metadata.db');
       renderEntries();
     }
-    status(event.message);
+    status(transferStatus(event));
     busy(false);
     controls.powerBtn.hidden = true;
   }
@@ -1470,8 +1481,8 @@ window.saveTransfer.onEvent((event) => {
     browseSessionActive = false;
     browseSessionVersion++;
     dataTransferArmedHost = null;
-    status(`Stopped: ${event.message}\nCheck the log and the current step, then retry.`);
-    appendLog(`[error] ${event.message}`);
+    status(uiText`Stopped: ${event.message}\nCheck the log and the current step, then retry.`);
+    appendLog(uiText`[error] ${event.message}`);
     busy(false);
     controls.powerBtn.hidden = true;
   }
@@ -1491,12 +1502,12 @@ async function addExternalUpload(folder = false) {
     controls.uploadSaveSelect.appendChild(option);
   }
   for (const item of controls.uploadSaveSelect.options) item.selected = false;
-  option.textContent = `External: ${image.split(/[\\/]/).pop()}`;
+  option.textContent = uiText`External: ${image.split(/[\\/]/).pop()}`;
   option.selected = true;
   const title = image.toUpperCase().match(/PPSA[0-9]{5}/);
   controls.externalTitleId.value = title ? title[0] : '';
   renderCmpUpload();
-  status('External save added. Check the PPSA title ID and destination user, then click Upload.');
+  status(uiText('External save added. Check the PPSA title ID and destination user, then click Upload.'));
 }
 controls.addExternalSaveBtn.addEventListener('click', () => addExternalUpload(false));
 controls.addExternalFolderBtn.addEventListener('click', () => addExternalUpload(true));
@@ -1512,30 +1523,30 @@ async function addExternalZip() {
     controls.uploadSaveSelect.appendChild(option);
   }
   for (const item of controls.uploadSaveSelect.options) item.selected = false;
-  option.textContent = `External: ${result.folder.split(/[\\/]/).pop()}`;
+  option.textContent = uiText`External: ${result.folder.split(/[\\/]/).pop()}`;
   option.selected = true;
   controls.externalTitleId.value = result.titleId || '';
   renderCmpUpload();
   status(result.titleId
-    ? `ZIP extracted and added (title ${result.titleId}). Check the destination user, then click Upload.`
-    : 'ZIP extracted and added. Enter the PPSA title ID and destination user, then click Upload.');
+    ? uiText`ZIP extracted and added (title ${result.titleId}). Check the destination user, then click Upload.`
+    : uiText('ZIP extracted and added. Enter the PPSA title ID and destination user, then click Upload.'));
 }
 controls.addExternalZipBtn.addEventListener('click', () => addExternalZip());
 
 async function exportSelectedZip() {
   const selected = [...controls.uploadSaveSelect.selectedOptions].filter((option) => option.value !== 'external');
   if (selected.length !== 1) {
-    status('Select exactly one downloaded save above, then click Export as ZIP.');
+    status(uiText('Select exactly one downloaded save above, then click Export as ZIP.'));
     return;
   }
   const entryId = Number(selected[0].value);
   const suggestedName = `${controls.externalTitleId.value.trim() || `save-entry-${entryId}`}.zip`;
   try {
     const result = await window.saveTransfer.exportEntryZip(options().output, entryId, suggestedName);
-    if (!result) { status('Export canceled.'); return; }
-    status(`Saved ${result.file_count} file(s) (${result.title_id}) to ${result.archive}`);
+    if (!result) { status(uiText('Export canceled.')); return; }
+    status(uiText`Saved ${result.file_count} file(s) (${result.title_id}) to ${result.archive}`);
   } catch (error) {
-    status(`Could not export ZIP: ${error.message}`);
+    status(uiText`Could not export ZIP: ${error.message}`);
   }
 }
 controls.exportZipBtn.addEventListener('click', () => exportSelectedZip());

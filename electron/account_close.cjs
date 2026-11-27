@@ -1,4 +1,5 @@
 const { randomUUID } = require('node:crypto');
+const { t } = require('./i18n.js');
 
 // Function Account Close
 function registerAccountClose({ app, window, ipcMain, dialog, timeoutMs = 15000, onError = () => {} }) {
@@ -47,9 +48,9 @@ function registerAccountClose({ app, window, ipcMain, dialog, timeoutMs = 15000,
     let discard = false;
     try {
       const choice = await dialog.showMessageBox(window, {
-        type: 'error', title: 'GarlicTransfer', message: 'Could not save account names.',
-        detail: result.error || 'Keep editing to correct the names or retry saving.',
-        buttons: ['Keep editing', 'Discard unsaved names and close'],
+        type: 'error', title: 'GarlicTransfer', message: t('Could not save account names.'),
+        detail: t(result.error || 'Keep editing to correct the names or retry saving.'),
+        buttons: [t('Keep editing'), t('Discard unsaved names and close')],
         defaultId: 0, cancelId: 0, noLink: true,
       });
       discard = choice.response === 1;
