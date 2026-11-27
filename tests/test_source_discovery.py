@@ -204,6 +204,39 @@ class OracleConfigurationTests(unittest.TestCase):
         self.assertEqual(body[48:64], bytes.fromhex("00000000000000000000ffffc0a8052c"))
         self.assertEqual(struct.unpack_from("<I", body, 32)[0], 0x13600007)
 
+    def test_console_info_supports_the_extended_ps5_pro_layout(self):
+        address = dt_source.packed_address("fe80::1234")
+        body = dt_source.console_info(3, 0x290, b"np", 0x14230000, 0x14230000,
+                                      data_address=address, extended=True)
+        self.assertEqual(len(body), 72)
+        self.assertEqual(struct.unpack_from("<H", body, 16)[0], 0)
+        self.assertEqual(struct.unpack_from("<I", body, 40)[0], 0x14230000)
+        self.assertEqual(struct.unpack_from("<I", body, 48)[0], 1)
+        self.assertEqual(struct.unpack_from("<I", body, 52)[0], 0x14230000)
+        self.assertEqual(body[56:72], address)
+
+    def test_local_link_local_uses_the_command_adapter(self):
+        class FakeSocket:
+            def getsockname(self):
+                return ("192.168.1.50", 1004)
+        addresses = {"eth0": [
+            SimpleNamespace(family=socket.AF_INET, address="192.168.1.50"),
+            SimpleNamespace(family=socket.AF_INET6, address="fe80::1234"),
+            SimpleNamespace(family=socket.AF_INET6, address="2001:db8::1"),
+        ]}
+        with patch("psutil.net_if_addrs", return_value=addresses):
+            self.assertEqual(dt_source.local_link_local(FakeSocket()),
+                             dt_source.packed_address("fe80::1234"))
+
+    def test_local_link_local_requires_ipv6(self):
+        class FakeSocket:
+            def getsockname(self):
+                return ("192.168.1.50", 1004)
+        addresses = {"eth0": [SimpleNamespace(family=socket.AF_INET, address="192.168.1.50")]}
+        with patch("psutil.net_if_addrs", return_value=addresses):
+            with self.assertRaisesRegex(ValueError, "enable IPv6"):
+                dt_source.local_link_local(FakeSocket())
+
 
 class PowerExchangeTests(unittest.TestCase):
     def test_power_response_matches_each_console(self):

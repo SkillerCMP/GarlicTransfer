@@ -42,7 +42,7 @@ jobs:
         run: |
           Invoke-WebRequest -Uri 'https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip' -OutFile build/python-embed.zip
           Expand-Archive -Path build/python-embed.zip -DestinationPath build/windows-python -Force
-          python -m pip download --only-binary=:all: --python-version 312 --platform win_amd64 'cryptography==44.0.3' --dest build/wheels
+          python -m pip download --only-binary=:all: --python-version 312 --platform win_amd64 'cryptography==44.0.3' 'psutil>=7.0.0,<8.0.0' --dest build/wheels
           Get-ChildItem build/wheels/*.whl | ForEach-Object { Expand-Archive -Path $_.FullName -DestinationPath build/windows-python -Force }
           Add-Content -Path build/windows-python/python312._pth -Value '..'
           Copy-Item -Recurse poc build/poc
