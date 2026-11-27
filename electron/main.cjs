@@ -102,6 +102,13 @@ function stopActive() {
   stopOracle();
 }
 
+let pairingSessionDirectory;
+
+function pairingSessionRoot() {
+  pairingSessionDirectory ??= fs.mkdtempSync(path.join(app.getPath('temp'), 'garlic-pairing-'));
+  return pairingSessionDirectory;
+}
+
 function startDownload(options) {
   if (active) throw new Error('another transfer is already running');
   // The renderer never chooses a local credential file. Resolve it only from
@@ -109,11 +116,10 @@ function startDownload(options) {
   delete options.approvalPrefixPath;
   let paired = null;
   if (options.hostId && options.systemVersion) {
-    paired = existingPairingPrefix(app.getPath('userData'), options);
+    paired = existingPairingPrefix(pairingSessionRoot(), options);
     if (paired) options.approvalPrefixPath = paired;
   }
-  const metadataPath = resolveMetadata(options.metadata, options.output || 'dt_downloads');
-  if (!String(options.accountId || '').trim() && !paired && !fs.existsSync(metadataPath)) {
+  if (!String(options.accountId || '').trim() && !paired) {
     startPairing(options);
     return;
   }
@@ -161,7 +167,7 @@ function startDownload(options) {
 function startPairing(options) {
   if (active) throw new Error('another transfer is already running');
   if (net.isIP(options.clientHost) !== 4) throw new Error('Discover and select a PS5 IPv4 address first');
-  const prefixPath = pairingPrefixPath(app.getPath('userData'), options);
+  const prefixPath = pairingPrefixPath(pairingSessionRoot(), options);
   fs.mkdirSync(path.dirname(prefixPath), { recursive: true, mode: 0o700 });
   active = { kind: 'pair', completed: false, process: null };
   const session = active;
@@ -212,7 +218,7 @@ function startPairing(options) {
           if (event.type === 'status') send('status', { message: String(event.message || '') });
           if (event.type === 'error') session.error = String(event.message || 'Pairing failed');
           if (event.type === 'paired') {
-            if (!existingPairingPrefix(app.getPath('userData'), options)) {
+            if (!existingPairingPrefix(pairingSessionRoot(), options)) {
               session.error = 'Pairing helper did not save a valid identifier';
             } else {
               session.completed = true;
@@ -402,7 +408,7 @@ function startUpload(options) {
     if (active !== session) return;
     await ensureOracle(options, session);
     if (active !== session) return;
-    const prefixPath = pairingPrefixPath(app.getPath('userData'), options);
+    const prefixPath = pairingPrefixPath(pairingSessionRoot(), options);
     fs.mkdirSync(path.dirname(prefixPath), { recursive: true, mode: 0o700 });
     const sourceEnvironment = {
       DT_METADATA: path.resolve(options.metadata),
@@ -565,6 +571,14 @@ app.whenReady().then(() => {
 });
 
 app.on('will-quit', stopActive);
+app.on('will-quit', () => {
+  if (!pairingSessionDirectory) return;
+  try {
+    fs.rmSync(pairingSessionDirectory, { recursive: true, force: true });
+  } catch (error) {
+    console.warn('Could not remove session pairing files:', error.message);
+  }
+});
 app.on('will-quit', () => localHelper.stop());
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
@@ -646,10 +660,10 @@ ipcMain.handle('transfer:download', (_event, options) => startDownload(options))
 ipcMain.handle('transfer:pair', (_event, options) => startPairing(options));
 ipcMain.handle('transfer:pair-status', (_event, identity) => {
   if (!identity?.hostId || !identity?.systemVersion) return false;
-  return Boolean(existingPairingPrefix(app.getPath('userData'), identity));
+  return Boolean(existingPairingPrefix(pairingSessionRoot(), identity));
 });
-ipcMain.handle('transfer:pair-info', (_event, identity) => pairingInfo(app.getPath('userData'), identity));
-ipcMain.handle('transfer:pair-infos', (_event, identities) => pairingInfos(app.getPath('userData'), identities));
+ipcMain.handle('transfer:pair-info', (_event, identity) => pairingInfo(pairingSessionRoot(), identity));
+ipcMain.handle('transfer:pair-infos', (_event, identities) => pairingInfos(pairingSessionRoot(), identities));
 ipcMain.handle('transfer:select', (_event, entryIds) => {
   if (!active || active.kind !== 'download' || !active.awaitingSelection || !active.process) {
     throw new Error('no download session is waiting for a selection');
