@@ -6,7 +6,7 @@ import shutil
 from pathlib import Path
 
 from poc.dt_layout import PROFILE_FOLDERS, profile_root, metadata_file, manifest_ids, existing_payload
-from poc.dt_metadata import infer_title_id, load_manifest, persist_manifest_entry
+from poc.dt_metadata import DigestCache, infer_title_id, load_manifest, persist_manifest_entry
 
 
 def public_entry(entry_id, entry):
@@ -35,12 +35,18 @@ def local_inventory(assets, include_warnings=False):
     warnings = []
     entry_ids = manifest_ids(assets, warnings)
     entries = []
+    # Listing runs on every launch; reuse digests of files that have not changed.
+    digest_cache = DigestCache(assets)
+    documents = {}  # parse the shared root manifest once, not once per entry
+    complete = True
     for entry_id in sorted(entry_ids):
         try:
-            actual_id, entry = load_manifest(assets, entry_id)
+            actual_id, entry = load_manifest(assets, entry_id, digest_cache=digest_cache, documents=documents)
             entries.append(public_entry(actual_id, entry))
         except (OSError, ValueError, KeyError, TypeError) as exc:
+            complete = False
             warnings.append(f"entry {entry_id}: {exc}")
+    digest_cache.save(prune=complete)
     if include_warnings:
         return {"entries": entries, "warnings": warnings}
     return entries
