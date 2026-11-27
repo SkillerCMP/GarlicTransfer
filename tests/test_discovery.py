@@ -1,9 +1,44 @@
 import errno
+import ipaddress
 import socket
 import threading
 import unittest
+from unittest.mock import patch
 
+from poc.dt_backend import channel_host
 from poc.dt_discovery import SRCH, discover_routes
+
+
+def discovery_address(address):
+    return b"host-address:" + ipaddress.IPv6Address(address).packed.hex().encode() + b"\n"
+
+
+class ChannelHostTests(unittest.TestCase):
+    def test_unavailable_interface_falls_back_to_ipv4(self):
+        with patch("socket.if_nametoindex", side_effect=OSError("no such interface")):
+            self.assertEqual(
+                channel_host("192.168.1.20", "wlp4s0", discovery_address("fe80::1234"), True),
+                "192.168.1.20",
+            )
+
+    def test_interface_name_is_converted_to_a_numeric_scope(self):
+        with patch("socket.if_nametoindex", return_value=12):
+            self.assertEqual(
+                channel_host("192.168.1.20", "Ethernet", discovery_address("fe80::1234"), True),
+                "fe80::1234%12",
+            )
+
+    def test_ipv4_mapped_response_uses_the_ipv4_channel(self):
+        self.assertEqual(
+            channel_host("192.168.1.20", "wlp4s0", discovery_address("::ffff:192.168.1.25"), True),
+            "192.168.1.20",
+        )
+
+    def test_global_ipv6_does_not_need_a_scope(self):
+        self.assertEqual(
+            channel_host("192.168.1.20", "", discovery_address("2001:db8::1234"), True),
+            "2001:db8::1234",
+        )
 
 
 class DiscoveryRouteTests(unittest.TestCase):

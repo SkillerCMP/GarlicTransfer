@@ -64,10 +64,10 @@ class UploadLifecycleTests(unittest.TestCase):
     def test_download_falls_back_to_pairing_and_upload_supplies_prefix_path(self):
         source = Path(__file__).resolve().parent.parent.joinpath("electron", "main.cjs").read_text()
         download = source[source.index("function startDownload"):source.index("function startPairing")]
-        self.assertIn("!paired && !fs.existsSync(metadataPath)", download)
+        self.assertIn("!String(options.accountId || '').trim() && !paired", download)
         self.assertIn("startPairing(options)", download)
         upload = source[source.index("function startUpload"):source.index("function finish")]
-        self.assertIn("const prefixPath = pairingPrefixPath(app.getPath('userData'), options)", upload)
+        self.assertIn("const prefixPath = pairingPrefixPath(pairingSessionRoot(), options)", upload)
         self.assertIn("fs.mkdirSync(path.dirname(prefixPath)", upload)
         self.assertIn("DT_PAIRING_PREFIX: prefixPath", upload)
         self.assertIn("DT_PAIRING_UID = String(process.getuid())", upload)

@@ -3,6 +3,7 @@ import hashlib
 import ipaddress
 import json
 import re
+import socket
 import sqlite3
 import struct
 import sys
@@ -43,7 +44,21 @@ def channel_host(client, interface, response, prefer_ipv6=False):
         for line in response.splitlines():
             if line.startswith(b"host-address:"):
                 address = ipaddress.IPv6Address(bytes.fromhex(line.split(b":", 1)[1].decode()))
-                return f"{address.compressed}%{interface}"
+                if address.ipv4_mapped:
+                    return client
+                if not address.is_link_local:
+                    return address.compressed
+                scope = str(interface or "").strip()
+                if not scope:
+                    return client
+                if not scope.isdigit():
+                    try:
+                        scope = str(socket.if_nametoindex(scope))
+                    except (AttributeError, OSError):
+                        return client
+                if int(scope) <= 0:
+                    return client
+                return f"{address.compressed}%{scope}"
     return client
 
 
@@ -171,6 +186,8 @@ def download(options):
     skip_launch = options.get("skipLaunch", False) and not options.get("preferIpv6", False)
     response = launch_console(client, skip_launch=skip_launch)
     host = channel_host(client, options["interface"], response, options.get("preferIpv6", False))
+    if options.get("preferIpv6", False) and ":" not in client and host == client:
+        emit("log", message="IPv6 channel unavailable for this console or interface; using IPv4.")
     protocol_version, firmware_version = discovery_versions(response)
     if options.get("approvalPrefixPath"):
         expected_host_id = str(options.get("hostId", ""))
