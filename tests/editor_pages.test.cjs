@@ -85,7 +85,7 @@ test('pages enforce metadata protection, regular files and bounded read ranges',
 
 test('an outside edit during staging survives a paged save', async t => {
   const file = await setup(t, 'original bytes');
-  const filename = path.join(file.root, file.path);
+  const filename = await fs.realpath(path.join(file.root, file.path));
   const { version } = await readWorkspacePage({ ...file, offset: 0, length: 4 });
   const open = fs.open;
   let changed = false;
