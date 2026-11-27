@@ -82,10 +82,10 @@
     }
 
     // Function Local Tree
-    function render({ saves, users, filter, busy, selected }) {
+    function render({ saves, users, filter, busy, selected, emptyText }) {
       index(saves);
       const selectedKey = selected ? fileKey(selected.entry, selected.file) : null;
-      layout.setLibrary({ entries, users, filter, busy,
+      layout.setLibrary({ entries, users, filter, busy, emptyText,
         files: (entry) => filesByEntry.get(tree.saveKey(entry)) || [],
         selectedFile: (entry, file) => selectedKey === fileKey(entry, file),
         onOpen: (entry, file) => {

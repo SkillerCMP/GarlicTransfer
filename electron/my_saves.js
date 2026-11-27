@@ -1,7 +1,7 @@
 const myControls = {};
 for (const id of [
   'mySavesTab', 'mySaveEntries', 'myTitleEntries', 'myTitleList', 'myTitleSaveList',
-  'mySavesBackBtn', 'mySavesLibraryLabel', 'localConsoleSelect', 'localUserSelect', 'chooseLocalPcFolderBtn', 'localPcFolderLabel',
+  'mySavesBackBtn', 'mySavesLibraryLabel', 'mySavesSearch', 'mySavesSearchCount', 'localConsoleSelect', 'localUserSelect', 'chooseLocalPcFolderBtn', 'localPcFolderLabel',
   'refreshMySavesBtn', 'decryptExternalBtn', 'selectedSavePanel',
   'selectedSaveName', 'selectedSaveDetails', 'mySaveDecryptBtn', 'mySaveResignBtn', 'mySaveExportBtn',
   'saveMoreBtn', 'saveMoreOptions', 'decryptExportBtn', 'saveEncryptFileBtn',
@@ -247,9 +247,19 @@ const libraryTree = window.SaveTreeBridge.library({
   onAction: (action) => myControls[action].click(), isBusy: () => accountClosing || mySaveOperation,
 });
 
-function myTitleGroups() {
+// Local saves matching the search box: title, title ID, filename, user or entry ID.
+// Each save is matched with only its own file, so a title's other files don't match it.
+function searchedMySaves() {
+  const query = myControls.mySavesSearch.value;
+  if (!query.trim()) return mySaves;
+  return mySaves.filter((save) => window.DownloadSearch.matches(
+    { ...save.entry, files: [save.file] }, query, cmpLocalUsers,
+  ));
+}
+
+function myTitleGroups(saves = mySaves) {
   const groups = new Map();
-  for (const save of mySaves) {
+  for (const save of saves) {
     const key = save.entry.title || save.entry.name;
     if (!groups.has(key)) groups.set(key, { key, name: save.entry.name || save.entry.title, titleId: save.entry.title, saves: [], bytes: 0 });
     const group = groups.get(key);
@@ -345,18 +355,34 @@ function localSaveActions(save) {
 
 function renderMySaves() {
   closeSaveContextMenu();
+  const query = myControls.mySavesSearch.value.trim();
+  const searched = searchedMySaves();
+  myControls.mySavesSearchCount.hidden = !query || !mySaves.length;
+  myControls.mySavesSearchCount.textContent = query
+    ? uiText`· ${searched.length} of ${mySaves.length} saves in ${myTitleGroups(searched).size} titles` : '';
   if (cmpLayout.active) {
-    libraryTree.render({ saves: mySaves, users: cmpLocalUsers,
-      filter: myControls.localUserSelect.value.toLowerCase(), busy: mySaveOperation, selected: selectedLocalSave });
+    libraryTree.render({ saves: searched, users: cmpLocalUsers,
+      filter: myControls.localUserSelect.value.toLowerCase(), busy: mySaveOperation, selected: selectedLocalSave,
+      emptyText: query && mySaves.length ? uiText`No saves match “${query}”.` : undefined });
     return;
   }
   renderClassicMySaves();
 }
 
+function emptySearchRow(tbody, colSpan, message) {
+  const row = document.createElement('tr'), cell = document.createElement('td');
+  cell.colSpan = colSpan; cell.className = 'empty'; cell.textContent = message;
+  row.appendChild(cell); tbody.appendChild(row);
+}
+
 // Function Classic Save List
 function renderClassicMySaves() {
-  const groups = myTitleGroups();
-  const selectedGroup = selectedTitle ? groups.get(selectedTitle) : null;
+  const allGroups = myTitleGroups();
+  const query = myControls.mySavesSearch.value.trim();
+  const groups = query ? myTitleGroups(searchedMySaves()) : allGroups;
+  // Look the open title up in the full library so typing narrows its saves
+  // instead of closing it.
+  const selectedGroup = selectedTitle ? allGroups.get(selectedTitle) : null;
   if (selectedTitle && !selectedGroup) selectedTitle = null;
   myControls.myTitleList.hidden = Boolean(selectedTitle);
   myControls.myTitleSaveList.hidden = !selectedTitle;
@@ -365,20 +391,27 @@ function renderClassicMySaves() {
   myControls.myTitleEntries.replaceChildren();
   myControls.mySaveEntries.replaceChildren();
   if (!mySaves.length) {
-    const row = document.createElement('tr'), cell = document.createElement('td');
-    cell.colSpan = 4; cell.className = 'empty'; cell.textContent = emptyLocalMessage();
-    row.appendChild(cell); myControls.myTitleEntries.appendChild(row);
+    emptySearchRow(myControls.myTitleEntries, 4, emptyLocalMessage());
     return;
   }
   if (!selectedTitle) {
+    if (!groups.size) emptySearchRow(myControls.myTitleEntries, 4, uiText`No saves match “${query}”.`);
     for (const group of groups.values()) {
+      const full = allGroups.get(group.key);
       const row = document.createElement('tr');
       const title = document.createElement('td');
       title.textContent = group.name;
+      if (group.titleId && group.titleId !== group.name) {
+        const titleId = document.createElement('span');
+        titleId.className = 'title-id';
+        titleId.textContent = group.titleId;
+        title.appendChild(titleId);
+      }
       const count = document.createElement('td');
-      count.textContent = `${group.saves.length}`;
+      count.textContent = group.saves.length === full.saves.length
+        ? `${full.saves.length}` : `${group.saves.length} / ${full.saves.length}`;
       const size = document.createElement('td');
-      size.textContent = `${(group.bytes / 0x100000).toFixed(1)} MiB`;
+      size.textContent = `${(full.bytes / 0x100000).toFixed(1)} MiB`;
       const actions = document.createElement('td');
       const open = document.createElement('button');
       open.type = 'button';
@@ -393,7 +426,9 @@ function renderClassicMySaves() {
     }
     return;
   }
-  for (const save of selectedGroup.saves) {
+  const saves = query ? (groups.get(selectedTitle)?.saves || []) : selectedGroup.saves;
+  if (!saves.length) emptySearchRow(myControls.mySaveEntries, 3, uiText`No saves in this title match “${query}”.`);
+  for (const save of saves) {
     const row = document.createElement('tr');
     if (selectedLocalSave && localSaveKey(selectedLocalSave) === localSaveKey(save)) row.className = 'selected';
     const file = document.createElement('td');
@@ -417,6 +452,16 @@ function renderClassicMySaves() {
     myControls.mySaveEntries.appendChild(row);
   }
 }
+
+myControls.mySavesSearch.addEventListener('input', () => renderMySaves());
+myControls.mySavesSearch.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && myControls.mySavesSearch.value) {
+    event.preventDefault();
+    event.stopPropagation();
+    myControls.mySavesSearch.value = '';
+    renderMySaves();
+  }
+});
 
 myControls.mySavesBackBtn.addEventListener('click', () => {
   selectedTitle = null;
