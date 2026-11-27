@@ -129,6 +129,62 @@ class LocalSaveTests(unittest.TestCase):
             self.assertIn("entry 39", result["warnings"][0])
             self.assertIn("contains no files", result["warnings"][0])
 
+    def cache_path(self, assets):
+        return assets / "Transfer-Metadata" / "hash-cache.json"
+
+    def test_inventory_reuses_cached_digest_for_unchanged_file(self):
+        with tempfile.TemporaryDirectory() as folder:
+            assets, _ = self.make_case(Path(folder))
+            expected = hashlib.sha256(b"old-save").hexdigest()
+            self.assertEqual(local_inventory(assets)[0]["files"][0]["sha256"], expected)
+            self.assertTrue(self.cache_path(assets).is_file())
+            with patch("poc.dt_metadata.file_sha256", side_effect=AssertionError("unchanged file was re-hashed")):
+                self.assertEqual(local_inventory(assets)[0]["files"][0]["sha256"], expected)
+
+    def test_inventory_rehashes_file_changed_in_place(self):
+        with tempfile.TemporaryDirectory() as folder:
+            assets, entry_id = self.make_case(Path(folder))
+            local_inventory(assets)
+            payload = assets / str(entry_id) / "sdimg_DATA"
+            before = payload.stat().st_mtime_ns
+            payload.write_bytes(b"new-save")  # same size as before
+            os.utime(payload, ns=(before + 1_000_000_000, before + 1_000_000_000))
+            self.assertEqual(
+                local_inventory(assets)[0]["files"][0]["sha256"],
+                hashlib.sha256(b"new-save").hexdigest(),
+            )
+
+    def test_inventory_ignores_corrupt_digest_cache(self):
+        with tempfile.TemporaryDirectory() as folder:
+            assets, _ = self.make_case(Path(folder))
+            self.cache_path(assets).parent.mkdir(parents=True, exist_ok=True)
+            self.cache_path(assets).write_text("{not json")
+            self.assertEqual(
+                local_inventory(assets)[0]["files"][0]["sha256"],
+                hashlib.sha256(b"old-save").hexdigest(),
+            )
+            self.assertEqual(json.loads(self.cache_path(assets).read_text())["version"], 1)
+
+    def test_inventory_prunes_digests_of_removed_files(self):
+        with tempfile.TemporaryDirectory() as folder:
+            assets, _ = self.make_case(Path(folder))
+            local_inventory(assets)
+            document = json.loads(self.cache_path(assets).read_text())
+            document["files"]["999/sdimg_GONE"] = {"size": 1, "mtime_ns": 1, "sha256": "0" * 64}
+            self.cache_path(assets).write_text(json.dumps(document))
+            local_inventory(assets)
+            self.assertNotIn("999/sdimg_GONE", json.loads(self.cache_path(assets).read_text())["files"])
+
+    def test_upload_validation_still_hashes_without_cache(self):
+        from poc.dt_metadata import load_manifest
+        with tempfile.TemporaryDirectory() as folder:
+            assets, entry_id = self.make_case(Path(folder))
+            local_inventory(assets)
+            with patch("poc.dt_metadata.file_sha256", return_value="f" * 64) as hashed:
+                _, entry = load_manifest(assets, entry_id)
+            hashed.assert_called_once()
+            self.assertEqual(entry["files"][0]["sha256"], "f" * 64)
+
 
 if __name__ == "__main__":
     unittest.main()

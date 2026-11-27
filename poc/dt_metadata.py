@@ -12,10 +12,91 @@ import uuid
 from pathlib import Path
 
 
-from poc.dt_layout import profile_root, root_manifest, entry_manifest, manifest_ids, read_manifest_entry, existing_payload
+from poc.dt_layout import (
+    profile_root, metadata_directory, root_manifest, entry_manifest, manifest_ids, read_manifest_entry, existing_payload,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 TEMPLATE = PROJECT_ROOT / "poc" / "templates" / "single-save.db"
+
+
+def file_sha256(path):
+    """Hash a whole file."""
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as stream:
+        while chunk := stream.read(0x200000):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+class DigestCache:
+    """Remember save digests by size and mtime so unchanged files are not re-read.
+
+    Listing a large library otherwise re-hashes every save on every launch.
+    The cache lives beside the manifests and is only an optimisation: if it is
+    missing, unreadable or stale for a file, that file is hashed as before.
+    """
+
+    NAME = "hash-cache.json"
+    VERSION = 1
+
+    def __init__(self, root):
+        self.root = profile_root(root)
+        self.path = metadata_directory(self.root) / self.NAME
+        self.files = {}
+        self.seen = set()
+        self.dirty = False
+        try:
+            document = json.loads(self.path.read_text())
+        except (OSError, ValueError):
+            return
+        if isinstance(document, dict) and document.get("version") == self.VERSION and isinstance(document.get("files"), dict):
+            self.files = document["files"]
+
+    def _key(self, path):
+        path = Path(path).resolve()
+        try:
+            return path.relative_to(self.root.resolve()).as_posix()
+        except ValueError:
+            return str(path)
+
+    def sha256(self, path, stat):
+        """Return the file's digest, hashing only if it changed since it was cached."""
+        key = self._key(path)
+        self.seen.add(key)
+        cached = self.files.get(key)
+        if (
+            isinstance(cached, dict)
+            and cached.get("size") == stat.st_size
+            and cached.get("mtime_ns") == stat.st_mtime_ns
+            and isinstance(cached.get("sha256"), str)
+            and re.fullmatch(r"[0-9a-f]{64}", cached["sha256"])
+        ):
+            return cached["sha256"]
+        digest = file_sha256(path)
+        self.files[key] = {"size": stat.st_size, "mtime_ns": stat.st_mtime_ns, "sha256": digest}
+        self.dirty = True
+        return digest
+
+    def save(self, prune=False):
+        """Write the cache; with prune, drop files that were not seen this run."""
+        if prune:
+            for key in set(self.files) - self.seen:
+                del self.files[key]
+                self.dirty = True
+        if not self.dirty:
+            return
+        temporary = self.path.with_name(f"{self.path.name}.{os.getpid()}.tmp")
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            temporary.write_text(json.dumps({"version": self.VERSION, "files": self.files}, separators=(",", ":")))
+            os.replace(temporary, self.path)
+            self.dirty = False
+        except OSError:
+            try:
+                temporary.unlink()
+            except OSError:
+                pass
 
 
 def validate_user(user_id, user_name):
@@ -26,7 +107,7 @@ def validate_user(user_id, user_name):
     return user_id.lower()
 
 
-def validate_payload(path, entry_id, item):
+def validate_payload(path, entry_id, item, digest_cache=None):
     try:
         header = bytearray.fromhex(item["header"])
     except (KeyError, ValueError) as exc:
@@ -37,7 +118,8 @@ def validate_payload(path, entry_id, item):
         raise ValueError(f"save file {item['file']} has a mismatched GFP5 entry ID")
     if header[276:1300].split(b"\0", 1)[0].decode(errors="strict") != item.get("path"):
         raise ValueError(f"save file {item['file']} has mismatched manifest and GFP5 paths")
-    actual_size = path.stat().st_size
+    stat = path.stat()
+    actual_size = stat.st_size
     if actual_size <= 0:
         raise ValueError(f"save file {item['file']} is empty")
     manifest_size = int(item.get("size", 0))
@@ -52,18 +134,14 @@ def validate_payload(path, entry_id, item):
     struct.pack_into("<Q", header, 0xF0, actual_size)
     item["header"] = header.hex()
     item["size"] = actual_size
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        while chunk := stream.read(0x200000):
-            digest.update(chunk)
-    item["sha256"] = digest.hexdigest()
+    item["sha256"] = digest_cache.sha256(path, stat) if digest_cache is not None else file_sha256(path)
     return actual_size
 
 
-def load_manifest(assets, entry_id=None, expected_user_id=None):
+def load_manifest(assets, entry_id=None, expected_user_id=None, digest_cache=None, documents=None):
     """Load and validate save entry."""
     assets = profile_root(assets)
-    entry_id, entry = read_manifest_entry(assets, entry_id)
+    entry_id, entry = read_manifest_entry(assets, entry_id, documents)
     files = entry["files"]
     final_header = entry.get("final_header")
     if not final_header:
@@ -77,7 +155,7 @@ def load_manifest(assets, entry_id=None, expected_user_id=None):
             raise ValueError(f"save file for entry {entry_id} is missing: {name}")
         if not item.get("header"):
             raise ValueError(f"save file {name} lacks its GFP5 header; redownload the save")
-        validate_payload(path, entry_id, item)
+        validate_payload(path, entry_id, item, digest_cache)
     final_bytes = bytes.fromhex(final_header)
     if len(final_bytes) != 1304 or struct.unpack_from("<I", final_bytes)[0] != 0x35504647:
         raise ValueError(f"entry {entry_id} has an invalid GFP5 final header")

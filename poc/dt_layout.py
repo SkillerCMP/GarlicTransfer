@@ -83,8 +83,13 @@ def manifest_ids(root, warnings=None):
     return sorted(result)
 
 
-def read_manifest_entry(root, entry_id=None):
-    """Find entry with index fallback."""
+def read_manifest_entry(root, entry_id=None, documents=None):
+    """Find entry with index fallback.
+
+    ``documents`` is an optional dict that memoises parsed manifests for the
+    duration of one batch (e.g. listing every entry), so the shared root
+    manifest is parsed once instead of once per entry.
+    """
     if entry_id is None:
         ids = manifest_ids(root)
         if not ids:
@@ -98,7 +103,13 @@ def read_manifest_entry(root, entry_id=None):
         if not path.is_file():
             continue
         try:
-            document = _read_document(path)
+            if documents is None:
+                document = _read_document(path)
+            else:
+                key = str(path)
+                if key not in documents:
+                    documents[key] = _read_document(path)
+                document = documents[key]
             entry = document.get(str(entry_id))
             if entry is None and str(document.get("entry_id", "")) == str(entry_id):
                 entry = document
