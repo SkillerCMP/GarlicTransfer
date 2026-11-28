@@ -39,6 +39,8 @@ contextBridge.exposeInMainWorld('saveTransfer', {
   pairingAvailable: true,
   firewallAvailable: process.platform === 'win32',
   runFirewallHelper: () => ipcRenderer.invoke('windows:firewall-helper'),
+  getNetworkStatus: host => ipcRenderer.invoke('windows:network-status', host),
+  enableIpv6: (host, interfaceIndex) => ipcRenderer.invoke('windows:enable-ipv6', host, interfaceIndex),
   chooseOutput: () => ipcRenderer.invoke('dialog:output'),
   chooseMetadata: () => ipcRenderer.invoke('dialog:metadata'),
   chooseAssets: () => ipcRenderer.invoke('dialog:assets'),
@@ -79,6 +81,8 @@ contextBridge.exposeInMainWorld('saveTransfer', {
   },
   reloadLanguage: () => ipcRenderer.invoke('settings:reload-language'),
   version: () => ipcRenderer.invoke('app:version'),
+  checkForUpdates: () => ipcRenderer.invoke('updates:check'),
+  openUpdate: (downloadUrl) => ipcRenderer.invoke('updates:open', downloadUrl),
   onEvent: (callback) => {
     const listener = (_event, detail) => callback(detail);
     ipcRenderer.on('transfer:event', listener);

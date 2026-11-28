@@ -259,11 +259,30 @@ async function postMultipart({ serverUrl, workerKey, operation, accountId, input
   const boundary = `----GarlicTransfer${crypto.randomBytes(16).toString('hex')}`;
   const url = new URL(`${apiOrigin(serverUrl)}/api/v1/jobs`);
   const transport = url.protocol === 'https:' ? https : http;
+  const fields = [['operation', operation]];
+  if (operation === 'decrypt') fields.push(['include_sce_sys', 'true']);
+  if (operation === 'encrypt' || operation === 'resign') fields.push(['account_id', accountId]);
+  if (platform) fields.push(['platform', platform]);
+  const encodedFields = fields.map(([name, value]) =>
+    `--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`);
+  const encodedFiles = inputs.map(selected => {
+    const filename = path.basename(selected).replace(/["\r\n]/g, '_');
+    return {
+      selected,
+      size: fs.statSync(selected).size,
+      header: `--${boundary}\r\nContent-Disposition: form-data; name="files"; filename="${filename}"\r\nContent-Type: application/octet-stream\r\n\r\n`,
+    };
+  });
+  const closing = `--${boundary}--\r\n`;
+  const contentLength = encodedFields.reduce((total, field) => total + Buffer.byteLength(field), 0) +
+    encodedFiles.reduce((total, file) => total + Buffer.byteLength(file.header) + file.size + 2, 0) +
+    Buffer.byteLength(closing);
   const request = transport.request(url, {
     method: 'POST',
     signal,
     headers: {
       'Content-Type': `multipart/form-data; boundary=${boundary}`,
+      'Content-Length': contentLength,
       'X-Worker-Key': workerKey,
     },
   });
@@ -283,27 +302,24 @@ async function postMultipart({ serverUrl, workerKey, operation, accountId, input
     checkCanceled(signal);
     if (!request.write(data)) await once(request, 'drain', { signal });
   }
-  async function field(name, value) {
-    await write(`--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`);
-  }
   let response;
   try {
-    await field('operation', operation);
-    if (operation === 'decrypt') await field('include_sce_sys', 'true');
-    if (operation === 'encrypt' || operation === 'resign') await field('account_id', accountId);
-    if (platform) await field('platform', platform);
-    for (const selected of inputs) {
-      const filename = path.basename(selected).replace(/["\r\n]/g, '_');
-      await write(`--${boundary}\r\nContent-Disposition: form-data; name="files"; filename="${filename}"\r\nContent-Type: application/octet-stream\r\n\r\n`);
-      await pipeline(fs.createReadStream(selected), request, { end: false, signal });
+    for (const field of encodedFields) await write(field);
+    for (const file of encodedFiles) {
+      await write(file.header);
+      await pipeline(fs.createReadStream(file.selected), request, { end: false, signal });
       await write('\r\n');
     }
-    request.end(`--${boundary}--\r\n`);
+    request.end(closing);
     response = await responsePromise;
     checkCanceled(signal);
   } catch (error) {
     request.destroy();
     await requestClosed;
+    const earlyResponse = await Promise.race([responsePromise, Promise.resolve(null)]);
+    if (earlyResponse) {
+      throw new Error(`GarlicSaves returned HTTP ${earlyResponse.status}: ${earlyResponse.body.slice(0, 300)}`);
+    }
     throw error;
   }
 
@@ -598,7 +614,7 @@ async function runSaveJob(options) {
 }
 
 // Register save-editor actions.
-function registerSaveEditor({ ipcMain, app, dialog, shell, python, resourceRoot, workDir, pcStore, ensureLocalWorker, titleName }) {
+function registerSaveEditor({ ipcMain, app, dialog, shell, python, resourceRoot, workDir, pcStore, ensureLocalWorker, titleName, requireStableNetwork }) {
   const userDataRoot = app.getPath('userData');
   const temporaryStore = new SaveTemps(path.join(userDataRoot, 'save-editor'));
 
@@ -697,6 +713,7 @@ function registerSaveEditor({ ipcMain, app, dialog, shell, python, resourceRoot,
   // Function Save Operation
   async function saveOperation(event, action) {
     if (jobsClosing) throw new Error('GarlicTransfer is closing.');
+    requireStableNetwork?.();
     if (activeJob) throw new Error('another save operation is already running');
     const controller = new AbortController();
     let completed;
@@ -764,6 +781,7 @@ module.exports = {
   readWorkspaceFile,
   readWorkspacePage,
   registerSaveEditor,
+  hasActiveSaveJob: () => activeJob !== null,
   stopSaveJobs,
   resolveInside,
   runSaveJob,

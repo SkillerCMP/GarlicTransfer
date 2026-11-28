@@ -13,7 +13,7 @@ const fields = [
   'useRemoteOracle', 'serverUrl', 'workerKey', 'workerKeyRevision', 'oracleHost', 'oraclePort',
   'interface', 'hardware', 'output', 'metadata', 'assets',
   'userId', 'titleId', 'entryId', 'userName', 'sourcePort', 'dataPort', 'discoveryPort', 'preferIpv6',
-  'uploadDisplayName', 'uiLayout', 'jbFirmwareLimit', 'uiLanguage', 'installationId', 'authorizedUser', 'proMode',
+  'uploadDisplayName', 'uiLayout', 'jbFirmwareLimit', 'uiLanguage', 'installationId', 'authorizedUser',
 ];
 const defaults = {
   useRemoteOracle: true,
@@ -34,8 +34,7 @@ const defaults = {
   sourcePort: 1004,
   dataPort: 1005,
   discoveryPort: 1006,
-  preferIpv6: false,
-  proMode: false,
+  preferIpv6: true,
   uploadDisplayName: 'GarlicTransfer',
   uiLayout: 'chill',
   jbFirmwareLimit: DEFAULT_JB_FIRMWARE,
@@ -86,8 +85,7 @@ function loadSettings() {
     discoveryPort: Number(stored.discoveryPort || defaults.discoveryPort),
     uiLayout: /^[a-z][a-z0-9-]{0,63}$/.test(stored.uiLayout || '') ? stored.uiLayout : 'chill',
     uiLanguage: i18n.preference(stored.uiLanguage),
-    preferIpv6: stored.preferIpv6 === 'true',
-    proMode: stored.proMode === 'true',
+    preferIpv6: stored.preferIpv6 === undefined ? defaults.preferIpv6 : stored.preferIpv6 === 'true',
     jbFirmwareLimit: normalizeFirmwareLimit(stored.jbFirmwareLimit) || defaults.jbFirmwareLimit,
   };
 }
